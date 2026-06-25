@@ -43,3 +43,4 @@ Thumbs.db
 # Google Calendar credentials (NON CONDIVIDERE!)
 credentials.json
 token.pickle
+client_secret*.json
