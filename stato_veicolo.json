@@ -32,11 +32,12 @@
             "scadenze_chilometriche": {}
         }
     },
-    "veicolo_selezionato": "Yaris (CJ028ZZ)",
+    "veicolo_selezionato": "Corolla (GD028MR)",
     "scadenze_personali": {
         "Pagamento IMU prima rata": "2027-06-16",
         "Pagamento IMU seconda rata": "2026-12-16",
         "Visita Vadal\u00e0 Andr\u00e9s": "2026-12-15",
-        "Visita Trionfetti Auora": "2026-06-30"
+        "Visita Trionfetti Auora": "2026-06-30",
+        "Vendi auto yaris": "2026-06-30"
     }
 }

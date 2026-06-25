@@ -12,6 +12,13 @@ except ImportError:
     NOTIFICHE_DISPONIBILI = False
     print("Modulo notifiche non disponibile. Installa plyer: pip install plyer")
 
+try:
+    import google_calendar
+    GOOGLE_CALENDAR_DISPONIBILE = google_calendar.GOOGLE_DISPONIBILE
+except ImportError:
+    GOOGLE_CALENDAR_DISPONIBILE = False
+    print("Modulo google_calendar non disponibile")
+
 # Configurazione soglie di avviso
 SOGLIA_KM_PREAVVISO = 3500
 SOGLIA_GIORNI_PREAVVISO = 30
@@ -203,6 +210,102 @@ class ScadenzeApp:
         else:
             messagebox.showinfo("Controllo Scadenze", "✅ Nessuna scadenza critica o in avvicinamento!")
     
+    def esporta_veicolo_su_calendar(self):
+        """Esporta le scadenze del veicolo corrente su Google Calendar"""
+        if not GOOGLE_CALENDAR_DISPONIBILE:
+            messagebox.showerror(
+                "Errore", 
+                "Modulo Google Calendar non disponibile.\n\n"
+                "Per installare:\n"
+                "pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client"
+            )
+            return
+        
+        dati = self.get_dati_veicolo()
+        successo, risultato = google_calendar.esporta_scadenze_veicolo(dati, self.veicolo_corrente)
+        
+        if successo:
+            messaggio = f"📅 Scadenze esportate su Google Calendar:\n\n"
+            for evento in risultato:
+                messaggio += f"  ✅ {evento}\n"
+            messagebox.showinfo("Esportazione Completata", messaggio)
+        else:
+            messagebox.showerror("Errore Esportazione", risultato)
+    
+    def esporta_personali_su_calendar(self):
+        """Esporta le scadenze personali su Google Calendar"""
+        if not GOOGLE_CALENDAR_DISPONIBILE:
+            messagebox.showerror(
+                "Errore", 
+                "Modulo Google Calendar non disponibile.\n\n"
+                "Per installare:\n"
+                "pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client"
+            )
+            return
+        
+        successo, risultato = google_calendar.esporta_scadenze_personali(
+            self.dati_completi.get("scadenze_personali", {})
+        )
+        
+        if successo:
+            messaggio = f"📅 Scadenze personali esportate su Google Calendar:\n\n"
+            for evento in risultato:
+                messaggio += f"  ✅ {evento}\n"
+            messagebox.showinfo("Esportazione Completata", messaggio)
+        else:
+            messagebox.showerror("Errore Esportazione", risultato)
+    
+    def esporta_singola_scad_temp(self, nome_scadenza):
+        """Esporta una singola scadenza temporale del veicolo su Google Calendar"""
+        if not GOOGLE_CALENDAR_DISPONIBILE:
+            messagebox.showerror(
+                "Errore", 
+                "Modulo Google Calendar non disponibile.\n\n"
+                "Per installare:\n"
+                "pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client"
+            )
+            return
+        
+        dati = self.get_dati_veicolo()
+        data_scadenza = dati["scadenze_fisse"][nome_scadenza]
+        
+        successo, risultato = google_calendar.esporta_singola_scadenza(
+            nome_scadenza=nome_scadenza,
+            data_scadenza=data_scadenza,
+            tipo_scadenza="Scadenza temporale",
+            veicolo=self.veicolo_corrente
+        )
+        
+        if successo:
+            messagebox.showinfo("Esportazione Completata", risultato)
+        else:
+            messagebox.showerror("Errore Esportazione", risultato)
+    
+    def esporta_singola_scad_personale(self, nome_scadenza):
+        """Esporta una singola scadenza personale su Google Calendar"""
+        if not GOOGLE_CALENDAR_DISPONIBILE:
+            messagebox.showerror(
+                "Errore", 
+                "Modulo Google Calendar non disponibile.\n\n"
+                "Per installare:\n"
+                "pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client"
+            )
+            return
+        
+        data_scadenza = self.dati_completi["scadenze_personali"][nome_scadenza]
+        
+        successo, risultato = google_calendar.esporta_singola_scadenza(
+            nome_scadenza=nome_scadenza,
+            data_scadenza=data_scadenza,
+            tipo_scadenza="Scadenza personale",
+            veicolo=""
+        )
+        
+        if successo:
+            messagebox.showinfo("Esportazione Completata", risultato)
+        else:
+            messagebox.showerror("Errore Esportazione", risultato)
+    
     def ricarica_interfaccia(self):
         """Ricarica l'interfaccia con i dati del veicolo corrente"""
         # Distruggi tutti i widget
@@ -259,6 +362,10 @@ class ScadenzeApp:
             tk.Button(sel_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche, 
                      bg="#673AB7", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
         
+        if GOOGLE_CALENDAR_DISPONIBILE:
+            tk.Button(sel_frame, text="📅 Esporta su Calendar", command=self.esporta_veicolo_su_calendar, 
+                     bg="#4285F4", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        
         dati = self.get_dati_veicolo()
         
         # SEZIONE INFO VEICOLO
@@ -309,7 +416,14 @@ class ScadenzeApp:
             entry.insert(0, data)
             label_stato = tk.Label(self.temp_container, text="", font=self.normal_font, bg="#f0f0f0", width=30)
             label_stato.grid(row=row, column=2, padx=5)
-            self.scadenze_temp_widgets[voce] = {"entry": entry, "label": label_stato}
+            
+            # Pulsante esporta su Google Calendar
+            btn_calendar = tk.Button(self.temp_container, text="📅", 
+                                    command=lambda v=voce: self.esporta_singola_scad_temp(v),
+                                    bg="#4285F4", fg="white", width=2)
+            btn_calendar.grid(row=row, column=3, padx=2)
+            
+            self.scadenze_temp_widgets[voce] = {"entry": entry, "label": label_stato, "btn_calendar": btn_calendar}
             row += 1
         
         btn_frame_temp = tk.Frame(temp_frame, bg="#f0f0f0")
@@ -377,6 +491,10 @@ class ScadenzeApp:
         tk.Label(header_frame, text="Gestione Scadenze Personali", 
                 font=self.title_font, bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
         
+        if GOOGLE_CALENDAR_DISPONIBILE:
+            tk.Button(header_frame, text="📅 Esporta su Calendar", command=self.esporta_personali_su_calendar, 
+                     bg="#4285F4", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
+        
         if NOTIFICHE_DISPONIBILI:
             tk.Button(header_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche, 
                      bg="#673AB7", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
@@ -408,10 +526,17 @@ class ScadenzeApp:
                                    bg="#F44336", fg="white", width=2)
             btn_elimina.grid(row=row, column=3, padx=2)
             
+            # Pulsante esporta su Google Calendar
+            btn_calendar = tk.Button(self.personali_container, text="📅", 
+                                    command=lambda v=voce: self.esporta_singola_scad_personale(v),
+                                    bg="#4285F4", fg="white", width=2)
+            btn_calendar.grid(row=row, column=4, padx=2)
+            
             self.scadenze_personali_widgets[voce] = {
                 "entry": entry, 
                 "label": label_stato,
-                "btn_elimina": btn_elimina
+                "btn_elimina": btn_elimina,
+                "btn_calendar": btn_calendar
             }
             row += 1
         

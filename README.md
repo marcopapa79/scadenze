@@ -18,6 +18,7 @@ Applicazione Python con interfaccia grafica per la gestione delle scadenze di ve
 
 ### Funzionalità Comuni
 - **Notifiche Desktop**: Avvisi automatici per scadenze critiche
+- **Esportazione Google Calendar**: Esporta scadenze direttamente su Google Calendar
 - **Interfaccia Grafica Intuitiva**: Con tab separati e codici colore
 - **Salvataggio Automatico**: Tutti i dati salvati in JSON
 
@@ -32,6 +33,18 @@ Applicazione Python con interfaccia grafica per la gestione delle scadenze di ve
 Il sistema invia notifiche desktop automatiche quando:
 - Una scadenza è superata (rosso)
 - Una scadenza è in avvicinamento (giallo/arancione)
+
+## 📅 Esportazione Google Calendar
+
+Esporta tutte le tue scadenze su Google Calendar con un click!
+
+**Caratteristiche:**
+- Eventi colorati in rosso per alta visibilità
+- Promemoria automatici (7, 3 e 1 giorno prima)
+- Scadenze chilometriche con data stimata
+- Esportazione separata per veicoli e scadenze personali
+
+**Setup:** Vedi [GOOGLE_CALENDAR_SETUP.md](GOOGLE_CALENDAR_SETUP.md) per istruzioni dettagliate
 
 ## Setup
 
@@ -56,6 +69,12 @@ Il sistema invia notifiche desktop automatiche quando:
 
 ## Utilizzo
 
+### Metodo 1: Doppio Click (Windows)
+Fai doppio click su uno di questi file:
+- **`avvia_scadenze.bat`** - Avvio completo con controlli e installazione automatica dipendenze
+- **`run.bat`** - Avvio rapido (se le dipendenze sono già installate)
+
+### Metodo 2: Da Terminale
 ```bash
 python main.py
 ```
@@ -66,6 +85,7 @@ python main.py
 - **+ Nuovo Veicolo**: Aggiunge un nuovo veicolo
 - **- Rimuovi Veicolo**: Elimina il veicolo corrente (con conferma)
 - **🔔 Controlla Scadenze**: Verifica tutte le scadenze e mostra notifiche desktop
+- **📅 Esporta su Calendar**: Esporta scadenze del veicolo su Google Calendar
 - **+ Nuova Scadenza**: Aggiunge scadenze temporali al veicolo
 - **+ Nuova Scadenza Km**: Aggiunge scadenze chilometriche
 
@@ -73,6 +93,7 @@ python main.py
 - **+ Nuova Scadenza Personale**: Aggiunge una nuova scadenza (ISEE, Casa, ecc.)
 - **✕** (pulsante rosso): Elimina la scadenza specifica
 - **🔔 Controlla Scadenze**: Verifica tutte le scadenze (veicoli + personali)
+- **📅 Esporta su Calendar**: Esporta scadenze personali su Google Calendar
 
 ### Test Notifiche
 
@@ -85,8 +106,14 @@ python notifiche.py
 
 - `main.py`: Applicazione principale con GUI
 - `notifiche.py`: Sistema di notifiche desktop
+- `google_calendar.py`: Modulo esportazione Google Calendar
 - `stato_veicolo.json`: Database locale con i dati dei veicoli
 - `requirements.txt`: Dipendenze Python
+- `avvia_scadenze.bat`: Avvio con controlli automatici (Windows)
+- `run.bat`: Avvio rapido (Windows)
+- `GOOGLE_CALENDAR_SETUP.md`: Guida setup Google Calendar
+- `credentials.json`: **Credenziali Google (NON committare!)**
+- `token.pickle`: **Token autenticazione (generato automaticamente)**
 
 ## 🔧 Personalizzazione
 

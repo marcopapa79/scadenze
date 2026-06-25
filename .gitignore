@@ -39,3 +39,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Google Calendar credentials (NON CONDIVIDERE!)
+credentials.json
+token.pickle
