@@ -1,0 +1,2 @@
+# Dipendenze del progetto
+# tkinter è già incluso in Python

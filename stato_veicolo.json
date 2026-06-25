@@ -1,0 +1,56 @@
+{
+    "veicoli": {
+        "Corolla (GD028MR)": {
+            "nome_veicolo": "Corolla",
+            "targa": "GD028MR",
+            "km_attuali": 88375,
+            "scadenze_fisse": {
+                "Bollo": "2026-08-31",
+                "Assicurazione": "2026-11-27",
+                "Revisione": "2027-12-31"
+            },
+            "scadenze_chilometriche": {
+                "Tagliando": {
+                    "ultimo_km": 0,
+                    "prossimo_km": 91400
+                },
+                "Freni": {
+                    "ultimo_km": 0,
+                    "prossimo_km": 120000
+                },
+                "Gomme Anteriori": {
+                    "ultimo_km": 71071,
+                    "prossimo_km": 110000
+                }
+            }
+        },
+        "Yaris (XX000YY)": {
+            "nome_veicolo": "Yaris",
+            "targa": "XX000YY",
+            "km_attuali": 50000,
+            "scadenze_fisse": {
+                "Bollo": "2026-09-30",
+                "Assicurazione": "2026-12-31",
+                "Revisione": "2027-06-30"
+            },
+            "scadenze_chilometriche": {
+                "Tagliando": {
+                    "ultimo_km": 40000,
+                    "prossimo_km": 60000
+                },
+                "Freni": {
+                    "ultimo_km": 30000,
+                    "prossimo_km": 80000
+                }
+            }
+        },
+        "Yaris (CJ028ZZ)": {
+            "nome_veicolo": "Yaris",
+            "targa": "CJ028ZZ",
+            "km_attuali": 0,
+            "scadenze_fisse": {},
+            "scadenze_chilometriche": {}
+        }
+    },
+    "veicolo_selezionato": "Yaris (CJ028ZZ)"
+}
