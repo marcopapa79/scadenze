@@ -62,6 +62,21 @@ def autentica_google_calendar():
     return build('calendar', 'v3', credentials=creds)
 
 
+def trova_calendario_per_nome(service, nome_calendario):
+    """
+    Cerca un calendario per nome e restituisce il suo ID.
+    Se non trovato, restituisce 'primary'.
+    """
+    try:
+        calendari = service.calendarList().list().execute()
+        for cal in calendari.get('items', []):
+            if cal.get('summary', '').strip().lower() == nome_calendario.strip().lower():
+                return cal['id']
+    except Exception:
+        pass
+    return 'primary'
+
+
 def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", calendario_id='primary'):
     """
     Crea un evento su Google Calendar per una scadenza
@@ -97,7 +112,7 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
                     {'method': 'popup', 'minutes': 24 * 60},      # 1 giorno prima
                 ],
             },
-            'colorId': '11',  # Rosso per evidenziare
+            # Nessun colorId: usa il colore del calendario
         }
         
         evento_creato = service.events().insert(calendarId=calendario_id, body=evento).execute()
@@ -127,6 +142,9 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
     try:
         service = autentica_google_calendar()
         
+        # Trova il calendario "Famiglia"
+        cal_id = trova_calendario_per_nome(service, 'Famiglia')
+        
         # Costruisci descrizione
         descrizione = f"Tipo: {tipo_scadenza}"
         if veicolo:
@@ -135,7 +153,7 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
         # Costruisci titolo evento
         titolo = f"{veicolo} - {nome_scadenza}" if veicolo else nome_scadenza
         
-        link = crea_evento_scadenza(service, titolo, data_scadenza, descrizione)
+        link = crea_evento_scadenza(service, titolo, data_scadenza, descrizione, cal_id)
         
         if link:
             return True, f"✅ '{nome_scadenza}' esportata su Google Calendar!"
@@ -155,6 +173,7 @@ def esporta_scadenze_veicolo(dati_veicolo, nome_veicolo):
     
     try:
         service = autentica_google_calendar()
+        cal_id = trova_calendario_per_nome(service, 'Famiglia')
         eventi_creati = []
         
         # Esporta scadenze temporali
@@ -164,7 +183,8 @@ def esporta_scadenze_veicolo(dati_veicolo, nome_veicolo):
                 service, 
                 f"{nome_veicolo} - {nome_scadenza}",
                 data,
-                descrizione
+                descrizione,
+                cal_id
             )
             if link:
                 eventi_creati.append(nome_scadenza)
@@ -193,7 +213,8 @@ def esporta_scadenze_veicolo(dati_veicolo, nome_veicolo):
                     service,
                     f"{nome_veicolo} - {nome_scadenza} ({info['prossimo_km']} km)",
                     data_stimata,
-                    descrizione
+                    descrizione,
+                    cal_id
                 )
                 if link:
                     eventi_creati.append(f"{nome_scadenza} (stima)")
@@ -215,6 +236,7 @@ def esporta_scadenze_personali(scadenze_personali):
     
     try:
         service = autentica_google_calendar()
+        cal_id = trova_calendario_per_nome(service, 'Famiglia')
         eventi_creati = []
         
         for nome_scadenza, data in scadenze_personali.items():
@@ -223,7 +245,8 @@ def esporta_scadenze_personali(scadenze_personali):
                 service,
                 nome_scadenza,
                 data,
-                descrizione
+                descrizione,
+                cal_id
             )
             if link:
                 eventi_creati.append(nome_scadenza)

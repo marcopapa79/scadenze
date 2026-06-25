@@ -409,7 +409,7 @@ class ScadenzeApp:
         
         self.scadenze_temp_widgets = {}
         row = 0
-        for voce, data in dati["scadenze_fisse"].items():
+        for voce, data in sorted(dati["scadenze_fisse"].items(), key=lambda x: x[1]):
             tk.Label(self.temp_container, text=f"{voce}:", font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
             entry = tk.Entry(self.temp_container, font=self.normal_font, width=15)
             entry.grid(row=row, column=1, padx=5)
@@ -450,7 +450,7 @@ class ScadenzeApp:
         tk.Label(self.km_container, text="Km Residui", font=self.title_font, bg="#f0f0f0").grid(row=row, column=3, pady=5)
         row += 1
         
-        for voce, info in dati["scadenze_chilometriche"].items():
+        for voce, info in sorted(dati["scadenze_chilometriche"].items(), key=lambda x: x[1]["prossimo_km"] - dati["km_attuali"]):
             tk.Label(self.km_container, text=f"{voce}:", font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
             
             ultimo_entry = tk.Entry(self.km_container, font=self.normal_font, width=12)
@@ -509,7 +509,7 @@ class ScadenzeApp:
         
         self.scadenze_personali_widgets = {}
         row = 0
-        for voce, data in self.dati_completi.get("scadenze_personali", {}).items():
+        for voce, data in sorted(self.dati_completi.get("scadenze_personali", {}).items(), key=lambda x: x[1]):
             tk.Label(self.personali_container, text=f"{voce}:", 
                     font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
             
