@@ -24,26 +24,6 @@
                 }
             }
         },
-        "Yaris (XX000YY)": {
-            "nome_veicolo": "Yaris",
-            "targa": "XX000YY",
-            "km_attuali": 50000,
-            "scadenze_fisse": {
-                "Bollo": "2026-09-30",
-                "Assicurazione": "2026-12-31",
-                "Revisione": "2027-06-30"
-            },
-            "scadenze_chilometriche": {
-                "Tagliando": {
-                    "ultimo_km": 40000,
-                    "prossimo_km": 60000
-                },
-                "Freni": {
-                    "ultimo_km": 30000,
-                    "prossimo_km": 80000
-                }
-            }
-        },
         "Yaris (CJ028ZZ)": {
             "nome_veicolo": "Yaris",
             "targa": "CJ028ZZ",
@@ -52,5 +32,11 @@
             "scadenze_chilometriche": {}
         }
     },
-    "veicolo_selezionato": "Yaris (CJ028ZZ)"
+    "veicolo_selezionato": "Yaris (CJ028ZZ)",
+    "scadenze_personali": {
+        "Pagamento IMU prima rata": "2027-06-16",
+        "Pagamento IMU seconda rata": "2026-12-16",
+        "Visita Vadal\u00e0 Andr\u00e9s": "2026-12-15",
+        "Visita Trionfetti Auora": "2026-06-30"
+    }
 }

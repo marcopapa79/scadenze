@@ -5,6 +5,13 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from tkinter import font as tkfont
 
+try:
+    import notifiche
+    NOTIFICHE_DISPONIBILI = True
+except ImportError:
+    NOTIFICHE_DISPONIBILI = False
+    print("Modulo notifiche non disponibile. Installa plyer: pip install plyer")
+
 # Configurazione soglie di avviso
 SOGLIA_KM_PREAVVISO = 3500
 SOGLIA_GIORNI_PREAVVISO = 30
@@ -31,7 +38,12 @@ def inizializza_db():
                 },
             }
         },
-        "veicolo_selezionato": "Corolla (GD028MR)"
+        "veicolo_selezionato": "Corolla (GD028MR)",
+        "scadenze_personali": {
+            "ISEE": "2027-01-15",
+            "IMU Casa": "2026-12-16",
+            "Canone RAI": "2027-01-31"
+        }
     }
     if not os.path.exists(DB_FILE):
         with open(DB_FILE, "w", encoding="utf-8") as f:
@@ -51,7 +63,7 @@ def salva_dati(dati):
 class ScadenzeApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Gestione Scadenze Veicoli")
+        self.root.title("Gestione Scadenze - Veicoli e Personali")
         self.root.geometry("950x800")
         self.root.configure(bg="#f0f0f0")
         
@@ -63,6 +75,11 @@ class ScadenzeApp:
         # Migrazione vecchio formato se necessario
         if "veicoli" not in self.dati_completi:
             self.migra_vecchio_formato()
+        
+        # Aggiungi scadenze_personali se non esistono
+        if "scadenze_personali" not in self.dati_completi:
+            self.dati_completi["scadenze_personali"] = {}
+            salva_dati(self.dati_completi)
         
         self.veicolo_corrente = self.dati_completi.get("veicolo_selezionato", list(self.dati_completi["veicoli"].keys())[0])
         
@@ -165,6 +182,27 @@ class ScadenzeApp:
         
         messagebox.showinfo("Successo", f"Veicolo '{nome}' eliminato!")
     
+    def controlla_scadenze_notifiche(self):
+        """Controlla le scadenze e mostra notifiche desktop"""
+        if not NOTIFICHE_DISPONIBILI:
+            messagebox.showerror("Errore", "Modulo notifiche non disponibile.\nInstalla plyer: pip install plyer")
+            return
+        
+        # Controlla tutti i veicoli
+        riepilogo = notifiche.controlla_tutti_veicoli(self.dati_completi)
+        
+        if riepilogo:
+            # Mostra riepilogo
+            messaggio = "Notifiche inviate per:\n\n"
+            for veicolo, avvisi in riepilogo.items():
+                messaggio += f"🚗 {veicolo}:\n"
+                for avviso in avvisi:
+                    messaggio += f"  • {avviso}\n"
+                messaggio += "\n"
+            messagebox.showinfo("Controllo Scadenze", messaggio)
+        else:
+            messagebox.showinfo("Controllo Scadenze", "✅ Nessuna scadenza critica o in avvicinamento!")
+    
     def ricarica_interfaccia(self):
         """Ricarica l'interfaccia con i dati del veicolo corrente"""
         # Distruggi tutti i widget
@@ -176,7 +214,27 @@ class ScadenzeApp:
         self.aggiorna_visualizzazione()
     
     def crea_interfaccia(self):
-        main_frame = tk.Frame(self.root, bg="#f0f0f0")
+        # Crea Notebook (tabs)
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Tab 1: Veicoli
+        tab_veicoli = tk.Frame(self.notebook, bg="#f0f0f0")
+        self.notebook.add(tab_veicoli, text="🚗 Veicoli")
+        
+        # Tab 2: Scadenze Personali
+        tab_personali = tk.Frame(self.notebook, bg="#f0f0f0")
+        self.notebook.add(tab_personali, text="📋 Scadenze Personali")
+        
+        # Crea contenuto tab veicoli
+        self.crea_tab_veicoli(tab_veicoli)
+        
+        # Crea contenuto tab scadenze personali
+        self.crea_tab_personali(tab_personali)
+    
+    def crea_tab_veicoli(self, parent):
+        """Crea il tab per la gestione veicoli"""
+        main_frame = tk.Frame(parent, bg="#f0f0f0")
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # SELEZIONE VEICOLO
@@ -196,6 +254,10 @@ class ScadenzeApp:
         
         tk.Button(sel_frame, text="- Rimuovi Veicolo", command=self.rimuovi_veicolo, 
                  bg="#F44336", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        
+        if NOTIFICHE_DISPONIBILI:
+            tk.Button(sel_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche, 
+                     bg="#673AB7", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
         
         dati = self.get_dati_veicolo()
         
@@ -301,6 +363,64 @@ class ScadenzeApp:
         tk.Button(btn_frame_km, text="+ Nuova Scadenza Km", command=self.aggiungi_scadenza_km,
                  bg="#4CAF50", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame_km, text="Salva Scadenze Chilometriche", command=self.salva_scadenze_km,
+                 bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+    
+    def crea_tab_personali(self, parent):
+        """Crea il tab per le scadenze personali (casa, ISEE, ecc.)"""
+        main_frame = tk.Frame(parent, bg="#f0f0f0")
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Titolo e pulsante notifiche
+        header_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        header_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Label(header_frame, text="Gestione Scadenze Personali", 
+                font=self.title_font, bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
+        
+        if NOTIFICHE_DISPONIBILI:
+            tk.Button(header_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche, 
+                     bg="#673AB7", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
+        
+        # SEZIONE SCADENZE PERSONALI
+        scad_frame = tk.LabelFrame(main_frame, text="Scadenze (Casa, ISEE, Documenti, Altro)", 
+                                    font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+        scad_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.personali_container = tk.Frame(scad_frame, bg="#f0f0f0")
+        self.personali_container.pack(fill=tk.BOTH, expand=True)
+        
+        self.scadenze_personali_widgets = {}
+        row = 0
+        for voce, data in self.dati_completi.get("scadenze_personali", {}).items():
+            tk.Label(self.personali_container, text=f"{voce}:", 
+                    font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
+            
+            entry = tk.Entry(self.personali_container, font=self.normal_font, width=15)
+            entry.grid(row=row, column=1, padx=5)
+            entry.insert(0, data)
+            
+            label_stato = tk.Label(self.personali_container, text="", 
+                                  font=self.normal_font, bg="#f0f0f0", width=35)
+            label_stato.grid(row=row, column=2, padx=5)
+            
+            btn_elimina = tk.Button(self.personali_container, text="✕", 
+                                   command=lambda v=voce: self.elimina_scadenza_personale(v),
+                                   bg="#F44336", fg="white", width=2)
+            btn_elimina.grid(row=row, column=3, padx=2)
+            
+            self.scadenze_personali_widgets[voce] = {
+                "entry": entry, 
+                "label": label_stato,
+                "btn_elimina": btn_elimina
+            }
+            row += 1
+        
+        btn_frame = tk.Frame(scad_frame, bg="#f0f0f0")
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        tk.Button(btn_frame, text="+ Nuova Scadenza Personale", command=self.aggiungi_scadenza_personale,
+                 bg="#4CAF50", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Salva Scadenze Personali", command=self.salva_scadenze_personali,
                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
     
     def aggiungi_scadenza_temp(self):
@@ -412,6 +532,61 @@ class ScadenzeApp:
         except ValueError:
             messagebox.showerror("Errore", "Inserisci numeri validi per i chilometri")
     
+    def aggiungi_scadenza_personale(self):
+        """Aggiunge una nuova scadenza personale"""
+        nome = simpledialog.askstring("Nuova Scadenza Personale", 
+                                      "Nome della scadenza (es: IMU, ISEE, Passaporto):")
+        if not nome:
+            return
+        
+        data = simpledialog.askstring("Nuova Scadenza Personale", 
+                                      "Data scadenza (AAAA-MM-GG):")
+        if not data:
+            return
+        
+        try:
+            datetime.strptime(data, "%Y-%m-%d")
+        except ValueError:
+            messagebox.showerror("Errore", "Data non valida! Usa il formato AAAA-MM-GG")
+            return
+        
+        self.dati_completi["scadenze_personali"][nome] = data
+        salva_dati(self.dati_completi)
+        
+        self.ricarica_interfaccia()
+        messagebox.showinfo("Successo", f"Scadenza '{nome}' aggiunta!")
+    
+    def elimina_scadenza_personale(self, nome_scadenza):
+        """Elimina una scadenza personale"""
+        conferma = messagebox.askyesno(
+            "Conferma Eliminazione",
+            f"Vuoi eliminare la scadenza '{nome_scadenza}'?",
+            icon='warning'
+        )
+        
+        if not conferma:
+            return
+        
+        del self.dati_completi["scadenze_personali"][nome_scadenza]
+        salva_dati(self.dati_completi)
+        
+        self.ricarica_interfaccia()
+        messagebox.showinfo("Successo", f"Scadenza '{nome_scadenza}' eliminata!")
+    
+    def salva_scadenze_personali(self):
+        """Salva le modifiche alle scadenze personali"""
+        try:
+            for voce, widgets in self.scadenze_personali_widgets.items():
+                data_str = widgets["entry"].get()
+                datetime.strptime(data_str, "%Y-%m-%d")
+                self.dati_completi["scadenze_personali"][voce] = data_str
+            
+            salva_dati(self.dati_completi)
+            self.aggiorna_visualizzazione()
+            messagebox.showinfo("Successo", "Scadenze personali salvate!")
+        except ValueError:
+            messagebox.showerror("Errore", "Usa il formato AAAA-MM-GG per le date")
+    
     def aggiorna_visualizzazione(self):
         oggi = datetime.now()
         dati = self.get_dati_veicolo()
@@ -447,6 +622,24 @@ class ScadenzeApp:
             else:
                 colore = "green"
                 stato = f"{km_residui} km"
+            
+            widgets["label"].config(text=stato, fg=colore)
+        
+        # Aggiorna scadenze personali
+        for voce, widgets in self.scadenze_personali_widgets.items():
+            data_str = self.dati_completi["scadenze_personali"][voce]
+            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d")
+            giorni_rimasti = (data_scadenza - oggi).days
+            
+            if giorni_rimasti <= 0:
+                colore = "red"
+                stato = f"⚠️ ERRORE: SCADUTO da {abs(giorni_rimasti)} giorni!"
+            elif giorni_rimasti <= SOGLIA_GIORNI_PREAVVISO:
+                colore = "orange"
+                stato = f"⚠️ {giorni_rimasti} giorni (In scadenza)"
+            else:
+                colore = "green"
+                stato = f"{giorni_rimasti} giorni"
             
             widgets["label"].config(text=stato, fg=colore)
 

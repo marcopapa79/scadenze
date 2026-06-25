@@ -1,2 +1,3 @@
 # Dipendenze del progetto
 # tkinter è già incluso in Python
+plyer>=2.0.0
