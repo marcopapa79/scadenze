@@ -3,7 +3,7 @@
         "Corolla (GD028MR)": {
             "nome_veicolo": "Corolla",
             "targa": "GD028MR",
-            "km_attuali": 88375,
+            "km_attuali": 88376,
             "scadenze_fisse": {
                 "Bollo": "2026-08-31",
                 "Assicurazione": "2026-11-27",
@@ -30,14 +30,46 @@
             "km_attuali": 0,
             "scadenze_fisse": {},
             "scadenze_chilometriche": {}
+        },
+        "YARIS 1.0 business (GN183LR)": {
+            "nome_veicolo": "YARIS 1.0 business",
+            "targa": "GN183LR",
+            "km_attuali": 60500,
+            "scadenze_fisse": {},
+            "scadenze_chilometriche": {}
         }
     },
     "veicolo_selezionato": "Corolla (GD028MR)",
     "scadenze_personali": {
-        "Pagamento IMU prima rata": "2027-06-16",
-        "Pagamento IMU seconda rata": "2026-12-16",
-        "Visita Vadal\u00e0 Andr\u00e9s": "2026-12-15",
-        "Visita Trionfetti Auora": "2026-06-30",
-        "Vendi auto yaris": "2026-06-30"
+        "Pagamento IMU prima rata": {
+            "data": "2027-06-16",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null
+        },
+        "Pagamento IMU seconda rata": {
+            "data": "2026-12-16",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null
+        },
+        "Visita Vadal\u00e0 Andr\u00e9s": {
+            "data": "2026-12-15",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null
+        },
+        "Visita Trionfetti Auora": {
+            "data": "2026-06-30",
+            "con_orario": true,
+            "ora_inizio": "11:00",
+            "ora_fine": "12:00"
+        },
+        "Visita Skin Andres": {
+            "data": "2026-06-30",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null
+        }
     }
 }

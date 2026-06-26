@@ -116,12 +116,19 @@ def controlla_tutti_veicoli(dati_completi):
 def controlla_scadenze_personali(scadenze_personali):
     """
     Controlla le scadenze personali e invia notifiche
+    Gestisce sia il vecchio formato (stringhe) che il nuovo (dict con orari)
     """
     notifiche_inviate = []
     oggi = datetime.now()
     
-    for voce, data_str in scadenze_personali.items():
+    for voce, data_obj in scadenze_personali.items():
         try:
+            # Gestisci sia il vecchio formato (stringa) che il nuovo (dict)
+            if isinstance(data_obj, str):
+                data_str = data_obj
+            else:
+                data_str = data_obj.get('data', '')
+            
             data_scadenza = datetime.strptime(data_str, "%Y-%m-%d")
             giorni_rimasti = (data_scadenza - oggi).days
             

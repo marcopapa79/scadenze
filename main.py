@@ -292,13 +292,24 @@ class ScadenzeApp:
             )
             return
         
-        data_scadenza = self.dati_completi["scadenze_personali"][nome_scadenza]
+        data_obj = self.dati_completi["scadenze_personali"][nome_scadenza]
+        # Gestisci sia il vecchio formato (stringa) che il nuovo (dict)
+        if isinstance(data_obj, str):
+            data_scadenza = data_obj
+            orario_inizio = None
+            orario_fine = None
+        else:
+            data_scadenza = data_obj.get('data', '')
+            orario_inizio = data_obj.get('ora_inizio') if data_obj.get('con_orario') else None
+            orario_fine = data_obj.get('ora_fine') if data_obj.get('con_orario') else None
         
         successo, risultato = google_calendar.esporta_singola_scadenza(
             nome_scadenza=nome_scadenza,
             data_scadenza=data_scadenza,
             tipo_scadenza="Scadenza personale",
-            veicolo=""
+            veicolo="",
+            ora_inizio=orario_inizio,
+            ora_fine=orario_fine
         )
         
         if successo:
@@ -479,8 +490,16 @@ class ScadenzeApp:
         tk.Button(btn_frame_km, text="Salva Scadenze Chilometriche", command=self.salva_scadenze_km,
                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
     
+    def toggle_orario_personale(self, voce):
+        """Abilita/disabilita i campi orario quando il checkbox viene cliccato"""
+        if voce in self.scadenze_personali_widgets:
+            widgets = self.scadenze_personali_widgets[voce]
+            stato = tk.NORMAL if widgets["var_orario"].get() else tk.DISABLED
+            widgets["entry_inizio"].config(state=stato)
+            widgets["entry_fine"].config(state=stato)
+    
     def crea_tab_personali(self, parent):
-        """Crea il tab per le scadenze personali (casa, ISEE, ecc.)"""
+        """Crea il tab per le scadenze personali (casa, ISEE, ecc.) diviso in Visite e Scadenze"""
         main_frame = tk.Frame(parent, bg="#f0f0f0")
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
@@ -499,54 +518,121 @@ class ScadenzeApp:
             tk.Button(header_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche, 
                      bg="#673AB7", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
         
-        # SEZIONE SCADENZE PERSONALI
+        self.scadenze_personali_widgets = {}
+        
+        # SEZIONE VISITE
+        visite_frame = tk.LabelFrame(main_frame, text="Visite Mediche", 
+                                     font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+        visite_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
+        
+        visite_container = tk.Frame(visite_frame, bg="#f0f0f0")
+        visite_container.pack(fill=tk.BOTH, expand=True)
+        
+        # SEZIONE SCADENZE
         scad_frame = tk.LabelFrame(main_frame, text="Scadenze (Casa, ISEE, Documenti, Altro)", 
                                     font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
         scad_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.personali_container = tk.Frame(scad_frame, bg="#f0f0f0")
-        self.personali_container.pack(fill=tk.BOTH, expand=True)
+        scad_container = tk.Frame(scad_frame, bg="#f0f0f0")
+        scad_container.pack(fill=tk.BOTH, expand=True)
         
-        self.scadenze_personali_widgets = {}
-        row = 0
-        for voce, data in sorted(self.dati_completi.get("scadenze_personali", {}).items(), key=lambda x: x[1]):
-            tk.Label(self.personali_container, text=f"{voce}:", 
-                    font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
-            
-            entry = tk.Entry(self.personali_container, font=self.normal_font, width=15)
-            entry.grid(row=row, column=1, padx=5)
-            entry.insert(0, data)
-            
-            label_stato = tk.Label(self.personali_container, text="", 
-                                  font=self.normal_font, bg="#f0f0f0", width=35)
-            label_stato.grid(row=row, column=2, padx=5)
-            
-            btn_elimina = tk.Button(self.personali_container, text="✕", 
-                                   command=lambda v=voce: self.elimina_scadenza_personale(v),
-                                   bg="#F44336", fg="white", width=2)
-            btn_elimina.grid(row=row, column=3, padx=2)
-            
-            # Pulsante esporta su Google Calendar
-            btn_calendar = tk.Button(self.personali_container, text="📅", 
-                                    command=lambda v=voce: self.esporta_singola_scad_personale(v),
-                                    bg="#4285F4", fg="white", width=2)
-            btn_calendar.grid(row=row, column=4, padx=2)
-            
-            self.scadenze_personali_widgets[voce] = {
-                "entry": entry, 
-                "label": label_stato,
-                "btn_elimina": btn_elimina,
-                "btn_calendar": btn_calendar
-            }
-            row += 1
+        # Separazione visite da scadenze
+        visite_dict = {}
+        scadenze_dict = {}
         
-        btn_frame = tk.Frame(scad_frame, bg="#f0f0f0")
+        for voce, data_obj in self.dati_completi.get("scadenze_personali", {}).items():
+            if "Visita" in voce:
+                visite_dict[voce] = data_obj
+            else:
+                scadenze_dict[voce] = data_obj
+        
+        # Rendering VISITE
+        row_visite = 0
+        for voce, data_obj in sorted(visite_dict.items(), key=lambda x: x[1]['data'] if isinstance(x[1], dict) else x[1]):
+            self._crea_riga_personale(visite_container, voce, data_obj, row_visite)
+            row_visite += 1
+        
+        # Se non ci sono visite, mostra messaggio
+        if row_visite == 0:
+            tk.Label(visite_container, text="Nessuna visita programmata", 
+                    font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
+        
+        # Rendering SCADENZE
+        row_scad = 0
+        for voce, data_obj in sorted(scadenze_dict.items(), key=lambda x: x[1]['data'] if isinstance(x[1], dict) else x[1]):
+            self._crea_riga_personale(scad_container, voce, data_obj, row_scad)
+            row_scad += 1
+        
+        # Se non ci sono scadenze, mostra messaggio
+        if row_scad == 0:
+            tk.Label(scad_container, text="Nessuna scadenza programmata", 
+                    font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
+        
+        # Pulsanti di azione
+        btn_frame = tk.Frame(main_frame, bg="#f0f0f0")
         btn_frame.pack(fill=tk.X, pady=5)
         
         tk.Button(btn_frame, text="+ Nuova Scadenza Personale", command=self.aggiungi_scadenza_personale,
                  bg="#4CAF50", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Salva Scadenze Personali", command=self.salva_scadenze_personali,
                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+    
+    def _crea_riga_personale(self, container, voce, data_obj, row):
+        """Funzione helper per creare una riga di scadenza/visita"""
+        # Gestisci sia il vecchio formato (stringa) che il nuovo (dict)
+        if isinstance(data_obj, str):
+            data_obj = {'data': data_obj, 'con_orario': False, 'ora_inizio': None, 'ora_fine': None}
+        
+        tk.Label(container, text=f"{voce}:", 
+                font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
+        
+        entry = tk.Entry(container, font=self.normal_font, width=15)
+        entry.grid(row=row, column=1, padx=5)
+        entry.insert(0, data_obj['data'])
+        
+        # Checkbox per abilitare orario
+        var_orario = tk.BooleanVar(value=data_obj.get('con_orario', False))
+        chk_orario = tk.Checkbutton(container, text="⏰", variable=var_orario, 
+                                   bg="#f0f0f0", font=self.normal_font, width=2,
+                                   command=lambda v=voce: self.toggle_orario_personale(v))
+        chk_orario.grid(row=row, column=2, padx=2)
+        
+        # Campi orario (inizialmente disabilitati)
+        entry_inizio = tk.Entry(container, font=self.normal_font, width=8)
+        entry_inizio.grid(row=row, column=3, padx=2)
+        entry_inizio.insert(0, data_obj.get('ora_inizio') or "HH:MM")
+        entry_inizio.config(state=tk.NORMAL if data_obj.get('con_orario') else tk.DISABLED)
+        
+        entry_fine = tk.Entry(container, font=self.normal_font, width=8)
+        entry_fine.grid(row=row, column=4, padx=2)
+        entry_fine.insert(0, data_obj.get('ora_fine') or "HH:MM")
+        entry_fine.config(state=tk.NORMAL if data_obj.get('con_orario') else tk.DISABLED)
+        
+        label_stato = tk.Label(container, text="", 
+                              font=self.normal_font, bg="#f0f0f0", width=25)
+        label_stato.grid(row=row, column=5, padx=5)
+        
+        btn_elimina = tk.Button(container, text="✕", 
+                               command=lambda v=voce: self.elimina_scadenza_personale(v),
+                               bg="#F44336", fg="white", width=2)
+        btn_elimina.grid(row=row, column=6, padx=2)
+        
+        # Pulsante esporta su Google Calendar
+        btn_calendar = tk.Button(container, text="📅", 
+                                command=lambda v=voce: self.esporta_singola_scad_personale(v),
+                                bg="#4285F4", fg="white", width=2)
+        btn_calendar.grid(row=row, column=7, padx=2)
+        
+        self.scadenze_personali_widgets[voce] = {
+            "entry": entry, 
+            "label": label_stato,
+            "btn_elimina": btn_elimina,
+            "btn_calendar": btn_calendar,
+            "chk_orario": chk_orario,
+            "var_orario": var_orario,
+            "entry_inizio": entry_inizio,
+            "entry_fine": entry_fine
+        }
     
     def aggiungi_scadenza_temp(self):
         """Aggiunge una nuova scadenza temporale"""
@@ -675,7 +761,12 @@ class ScadenzeApp:
             messagebox.showerror("Errore", "Data non valida! Usa il formato AAAA-MM-GG")
             return
         
-        self.dati_completi["scadenze_personali"][nome] = data
+        self.dati_completi["scadenze_personali"][nome] = {
+            "data": data,
+            "con_orario": False,
+            "ora_inizio": None,
+            "ora_fine": None
+        }
         salva_dati(self.dati_completi)
         
         self.ricarica_interfaccia()
@@ -699,18 +790,43 @@ class ScadenzeApp:
         messagebox.showinfo("Successo", f"Scadenza '{nome_scadenza}' eliminata!")
     
     def salva_scadenze_personali(self):
-        """Salva le modifiche alle scadenze personali"""
+        """Salva le modifiche alle scadenze personali con orari opzionali"""
         try:
             for voce, widgets in self.scadenze_personali_widgets.items():
                 data_str = widgets["entry"].get()
                 datetime.strptime(data_str, "%Y-%m-%d")
-                self.dati_completi["scadenze_personali"][voce] = data_str
+                
+                con_orario = widgets["var_orario"].get()
+                ora_inizio = None
+                ora_fine = None
+                
+                if con_orario:
+                    ora_inizio = widgets["entry_inizio"].get().strip()
+                    ora_fine = widgets["entry_fine"].get().strip()
+                    if ora_inizio == "HH:MM":
+                        ora_inizio = None
+                    if ora_fine == "HH:MM":
+                        ora_fine = None
+                    # Valida il formato HH:MM
+                    if ora_inizio:
+                        datetime.strptime(ora_inizio, "%H:%M")
+                    if ora_fine:
+                        datetime.strptime(ora_fine, "%H:%M")
+                
+                self.dati_completi["scadenze_personali"][voce] = {
+                    "data": data_str,
+                    "con_orario": con_orario,
+                    "ora_inizio": ora_inizio,
+                    "ora_fine": ora_fine
+                }
             
             salva_dati(self.dati_completi)
             self.aggiorna_visualizzazione()
             messagebox.showinfo("Successo", "Scadenze personali salvate!")
-        except ValueError:
-            messagebox.showerror("Errore", "Usa il formato AAAA-MM-GG per le date")
+        except ValueError as e:
+            messagebox.showerror("Errore", f"Formato non valido!\nDate: AAAA-MM-GG\nOrari: HH:MM")
+    
+    
     
     def aggiorna_visualizzazione(self):
         oggi = datetime.now()
@@ -752,7 +868,11 @@ class ScadenzeApp:
         
         # Aggiorna scadenze personali
         for voce, widgets in self.scadenze_personali_widgets.items():
-            data_str = self.dati_completi["scadenze_personali"][voce]
+            data_obj = self.dati_completi["scadenze_personali"].get(voce, {})
+            if isinstance(data_obj, str):
+                data_obj = {'data': data_obj, 'con_orario': False, 'ora_inizio': None, 'ora_fine': None}
+            
+            data_str = data_obj.get('data', '')
             data_scadenza = datetime.strptime(data_str, "%Y-%m-%d")
             giorni_rimasti = (data_scadenza - oggi).days
             
@@ -765,6 +885,12 @@ class ScadenzeApp:
             else:
                 colore = "green"
                 stato = f"{giorni_rimasti} giorni"
+            
+            # Aggiungi orario se presente
+            if data_obj.get('con_orario') and data_obj.get('ora_inizio'):
+                stato += f" - {data_obj['ora_inizio']}"
+                if data_obj.get('ora_fine'):
+                    stato += f" a {data_obj['ora_fine']}"
             
             widgets["label"].config(text=stato, fg=colore)
 

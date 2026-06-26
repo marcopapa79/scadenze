@@ -77,7 +77,7 @@ def trova_calendario_per_nome(service, nome_calendario):
     return 'primary'
 
 
-def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", calendario_id='primary'):
+def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", calendario_id='primary', ora_inizio=None, ora_fine=None):
     """
     Crea un evento su Google Calendar per una scadenza
     
@@ -87,6 +87,8 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
         data_scadenza: Data in formato YYYY-MM-DD
         descrizione: Descrizione aggiuntiva (opzionale)
         calendario_id: ID del calendario (default: 'primary')
+        ora_inizio: Ora inizio in formato HH:MM (opzionale)
+        ora_fine: Ora fine in formato HH:MM (opzionale)
     
     Returns:
         Link all'evento creato
@@ -96,24 +98,40 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
         evento = {
             'summary': f'⚠️ Scadenza: {nome_scadenza}',
             'description': descrizione,
-            'start': {
-                'date': data_scadenza,  # Evento tutto il giorno
-                'timeZone': 'Europe/Rome',
-            },
-            'end': {
-                'date': data_scadenza,
-                'timeZone': 'Europe/Rome',
-            },
             'reminders': {
                 'useDefault': False,
                 'overrides': [
-                    {'method': 'popup', 'minutes': 24 * 60 * 7},  # 7 giorni prima
-                    {'method': 'popup', 'minutes': 24 * 60 * 3},  # 3 giorni prima
+                    {'method': 'popup', 'minutes': 10},           # 10 minuti prima
                     {'method': 'popup', 'minutes': 24 * 60},      # 1 giorno prima
+                    {'method': 'popup', 'minutes': 24 * 60 * 3},  # 3 giorni prima
                 ],
             },
             # Nessun colorId: usa il colore del calendario
         }
+        
+        # Se ci sono orari, crea un evento con orario specifico
+        if ora_inizio:
+            # Evento con orario
+            data_ora_inizio = f"{data_scadenza}T{ora_inizio}:00"
+            data_ora_fine = f"{data_scadenza}T{ora_fine or '23:59'}:00" if ora_fine else f"{data_scadenza}T{ora_inizio.split(':')[0]}:59:59"
+            evento['start'] = {
+                'dateTime': data_ora_inizio,
+                'timeZone': 'Europe/Rome',
+            }
+            evento['end'] = {
+                'dateTime': data_ora_fine,
+                'timeZone': 'Europe/Rome',
+            }
+        else:
+            # Evento tutto il giorno
+            evento['start'] = {
+                'date': data_scadenza,  # Evento tutto il giorno
+                'timeZone': 'Europe/Rome',
+            }
+            evento['end'] = {
+                'date': data_scadenza,
+                'timeZone': 'Europe/Rome',
+            }
         
         evento_creato = service.events().insert(calendarId=calendario_id, body=evento).execute()
         return evento_creato.get('htmlLink')
@@ -123,7 +141,7 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
         return None
 
 
-def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scadenza", veicolo=""):
+def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scadenza", veicolo="", ora_inizio=None, ora_fine=None):
     """
     Esporta una singola scadenza su Google Calendar
     
@@ -132,6 +150,8 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
         data_scadenza: Data in formato YYYY-MM-DD
         tipo_scadenza: Tipo (es. "Scadenza", "Scadenza personale", "Veicolo")
         veicolo: Nome del veicolo (opzionale)
+        ora_inizio: Ora inizio in formato HH:MM (opzionale)
+        ora_fine: Ora fine in formato HH:MM (opzionale)
     
     Returns:
         (bool successo, str messaggio)
@@ -153,7 +173,7 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
         # Costruisci titolo evento
         titolo = f"{veicolo} - {nome_scadenza}" if veicolo else nome_scadenza
         
-        link = crea_evento_scadenza(service, titolo, data_scadenza, descrizione, cal_id)
+        link = crea_evento_scadenza(service, titolo, data_scadenza, descrizione, cal_id, ora_inizio, ora_fine)
         
         if link:
             return True, f"✅ '{nome_scadenza}' esportata su Google Calendar!"
