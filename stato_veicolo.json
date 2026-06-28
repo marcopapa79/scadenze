@@ -7,7 +7,8 @@
             "scadenze_fisse": {
                 "Bollo": "2026-08-31",
                 "Assicurazione": "2026-11-27",
-                "Revisione": "2027-12-31"
+                "Revisione": "2027-12-31",
+                "cazzo": "2026-12-13"
             },
             "scadenze_chilometriche": {
                 "Tagliando": {
@@ -59,17 +60,23 @@
             "ora_inizio": null,
             "ora_fine": null
         },
-        "Visita Trionfetti Auora": {
-            "data": "2026-06-30",
-            "con_orario": true,
-            "ora_inizio": "11:00",
-            "ora_fine": "12:00"
-        },
         "Visita Skin Andres": {
             "data": "2026-06-30",
             "con_orario": false,
             "ora_inizio": null,
             "ora_fine": null
+        },
+        "Tagliando Corolla ": {
+            "data": "2026-07-16",
+            "con_orario": true,
+            "ora_inizio": "08:30",
+            "ora_fine": "11:30"
+        },
+        "Visita Trionfetti Aurora": {
+            "data": "2026-06-30",
+            "con_orario": true,
+            "ora_inizio": "11:00",
+            "ora_fine": "12:00"
         }
     }
 }

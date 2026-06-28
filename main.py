@@ -67,11 +67,33 @@ def salva_dati(dati):
         json.dump(dati, f, indent=4)
 
 
+def data_iso_a_italiana(data_iso):
+    """Converte data da formato ISO (YYYY-MM-DD) a formato italiano (DD-MM-YYYY)"""
+    try:
+        if not data_iso or data_iso == "HH:MM":
+            return data_iso
+        data_obj = datetime.strptime(data_iso, "%Y-%m-%d")
+        return data_obj.strftime("%d-%m-%Y")
+    except:
+        return data_iso
+
+
+def data_italiana_a_iso(data_ita):
+    """Converte data da formato italiano (DD-MM-YYYY) a formato ISO (YYYY-MM-DD)"""
+    try:
+        if not data_ita or data_ita == "HH:MM":
+            return data_ita
+        data_obj = datetime.strptime(data_ita, "%d-%m-%Y")
+        return data_obj.strftime("%Y-%m-%d")
+    except:
+        return data_ita
+
+
 class ScadenzeApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Gestione Scadenze - Veicoli e Personali")
-        self.root.geometry("950x800")
+        self.root.geometry("1300x800")
         self.root.configure(bg="#f0f0f0")
         
         self.title_font = tkfont.Font(family="Helvetica", size=14, weight="bold")
@@ -424,7 +446,7 @@ class ScadenzeApp:
             tk.Label(self.temp_container, text=f"{voce}:", font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
             entry = tk.Entry(self.temp_container, font=self.normal_font, width=15)
             entry.grid(row=row, column=1, padx=5)
-            entry.insert(0, data)
+            entry.insert(0, data_iso_a_italiana(data))
             label_stato = tk.Label(self.temp_container, text="", font=self.normal_font, bg="#f0f0f0", width=30)
             label_stato.grid(row=row, column=2, padx=5)
             
@@ -520,6 +542,16 @@ class ScadenzeApp:
         
         self.scadenze_personali_widgets = {}
         
+        # LEGENDA TASTI
+        legenda_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        legenda_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        legenda_font = tkfont.Font(family="Helvetica", size=10, weight="bold")
+        tk.Label(legenda_frame, text="Legenda:", font=legenda_font, bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
+        tk.Label(legenda_frame, text="✏️ Modifica", font=self.normal_font, bg="#FFF3E0", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
+        tk.Label(legenda_frame, text="✕ Cancella", font=self.normal_font, bg="#FFEBEE", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
+        tk.Label(legenda_frame, text="📅 Esporta", font=self.normal_font, bg="#E3F2FD", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
+        
         # SEZIONE VISITE
         visite_frame = tk.LabelFrame(main_frame, text="Visite Mediche", 
                                      font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
@@ -584,11 +616,11 @@ class ScadenzeApp:
             data_obj = {'data': data_obj, 'con_orario': False, 'ora_inizio': None, 'ora_fine': None}
         
         tk.Label(container, text=f"{voce}:", 
-                font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
+                font=self.normal_font, bg="#f0f0f0", width=28, anchor=tk.W).grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
         
         entry = tk.Entry(container, font=self.normal_font, width=15)
         entry.grid(row=row, column=1, padx=5)
-        entry.insert(0, data_obj['data'])
+        entry.insert(0, data_iso_a_italiana(data_obj['data']))
         
         # Checkbox per abilitare orario
         var_orario = tk.BooleanVar(value=data_obj.get('con_orario', False))
@@ -609,23 +641,30 @@ class ScadenzeApp:
         entry_fine.config(state=tk.NORMAL if data_obj.get('con_orario') else tk.DISABLED)
         
         label_stato = tk.Label(container, text="", 
-                              font=self.normal_font, bg="#f0f0f0", width=25)
-        label_stato.grid(row=row, column=5, padx=5)
+                              font=self.normal_font, bg="#f0f0f0", width=35)
+        label_stato.grid(row=row, column=5, padx=10, sticky=tk.W)
+        
+        # Pulsante modifica nome
+        btn_modifica = tk.Button(container, text="✏️", 
+                                command=lambda v=voce: self.modifica_scadenza_personale(v),
+                                bg="#FF9800", fg="white", width=2)
+        btn_modifica.grid(row=row, column=6, padx=2)
         
         btn_elimina = tk.Button(container, text="✕", 
                                command=lambda v=voce: self.elimina_scadenza_personale(v),
                                bg="#F44336", fg="white", width=2)
-        btn_elimina.grid(row=row, column=6, padx=2)
+        btn_elimina.grid(row=row, column=7, padx=2)
         
         # Pulsante esporta su Google Calendar
         btn_calendar = tk.Button(container, text="📅", 
                                 command=lambda v=voce: self.esporta_singola_scad_personale(v),
                                 bg="#4285F4", fg="white", width=2)
-        btn_calendar.grid(row=row, column=7, padx=2)
+        btn_calendar.grid(row=row, column=8, padx=2)
         
         self.scadenze_personali_widgets[voce] = {
             "entry": entry, 
             "label": label_stato,
+            "btn_modifica": btn_modifica,
             "btn_elimina": btn_elimina,
             "btn_calendar": btn_calendar,
             "chk_orario": chk_orario,
@@ -640,14 +679,15 @@ class ScadenzeApp:
         if not nome:
             return
         
-        data = simpledialog.askstring("Nuova Scadenza", "Data scadenza (AAAA-MM-GG):")
+        data = simpledialog.askstring("Nuova Scadenza", "Data scadenza (GG-MM-AAAA):")
         if not data:
             return
         
         try:
-            datetime.strptime(data, "%Y-%m-%d")
+            data_obj = datetime.strptime(data, "%d-%m-%Y")
+            data = data_obj.strftime("%Y-%m-%d")  # Converti in formato interno
         except ValueError:
-            messagebox.showerror("Errore", "Data non valida! Usa il formato AAAA-MM-GG")
+            messagebox.showerror("Errore", "Data non valida! Usa il formato GG-MM-AAAA")
             return
         
         dati = self.get_dati_veicolo()
@@ -719,13 +759,15 @@ class ScadenzeApp:
             dati = self.get_dati_veicolo()
             for voce, widgets in self.scadenze_temp_widgets.items():
                 data_str = widgets["entry"].get()
-                datetime.strptime(data_str, "%Y-%m-%d")
-                dati["scadenze_fisse"][voce] = data_str
+                # Converte da formato italiano (GG-MM-AAAA) a ISO (YYYY-MM-DD)
+                data_iso = data_italiana_a_iso(data_str)
+                datetime.strptime(data_iso, "%Y-%m-%d")
+                dati["scadenze_fisse"][voce] = data_iso  # Salva in formato ISO
             salva_dati(self.dati_completi)
             self.aggiorna_visualizzazione()
             messagebox.showinfo("Successo", "Scadenze temporali salvate!")
         except ValueError:
-            messagebox.showerror("Errore", "Usa il formato AAAA-MM-GG per le date")
+            messagebox.showerror("Errore", "Usa il formato GG-MM-AAAA per le date")
     
     def salva_scadenze_km(self):
         try:
@@ -751,12 +793,13 @@ class ScadenzeApp:
             return
         
         data = simpledialog.askstring("Nuova Scadenza Personale", 
-                                      "Data scadenza (AAAA-MM-GG):")
+                                      "Data scadenza (GG-MM-AAAA):")
         if not data:
             return
         
         try:
-            datetime.strptime(data, "%Y-%m-%d")
+            data_obj = datetime.strptime(data, "%d-%m-%Y")
+            data = data_obj.strftime("%Y-%m-%d")  # Converti in formato interno
         except ValueError:
             messagebox.showerror("Errore", "Data non valida! Usa il formato AAAA-MM-GG")
             return
@@ -771,6 +814,29 @@ class ScadenzeApp:
         
         self.ricarica_interfaccia()
         messagebox.showinfo("Successo", f"Scadenza '{nome}' aggiunta!")
+    
+    def modifica_scadenza_personale(self, nome_scadenza):
+        """Modifica il nome di una scadenza personale"""
+        nuovo_nome = simpledialog.askstring(
+            "Modifica Scadenza",
+            f"Nuovo nome per '{nome_scadenza}':",
+            initialvalue=nome_scadenza
+        )
+        
+        if not nuovo_nome or nuovo_nome == nome_scadenza:
+            return
+        
+        # Controlla se il nuovo nome esiste già
+        if nuovo_nome in self.dati_completi["scadenze_personali"]:
+            messagebox.showerror("Errore", f"Una scadenza con il nome '{nuovo_nome}' esiste già!")
+            return
+        
+        # Sposta la scadenza dal vecchio nome al nuovo
+        self.dati_completi["scadenze_personali"][nuovo_nome] = self.dati_completi["scadenze_personali"].pop(nome_scadenza)
+        salva_dati(self.dati_completi)
+        
+        self.ricarica_interfaccia()
+        messagebox.showinfo("Successo", f"Scadenza rinominata da '{nome_scadenza}' a '{nuovo_nome}'!")
     
     def elimina_scadenza_personale(self, nome_scadenza):
         """Elimina una scadenza personale"""
@@ -794,7 +860,9 @@ class ScadenzeApp:
         try:
             for voce, widgets in self.scadenze_personali_widgets.items():
                 data_str = widgets["entry"].get()
-                datetime.strptime(data_str, "%Y-%m-%d")
+                # Converte da formato italiano (GG-MM-AAAA) a ISO (YYYY-MM-DD)
+                data_iso = data_italiana_a_iso(data_str)
+                datetime.strptime(data_iso, "%Y-%m-%d")
                 
                 con_orario = widgets["var_orario"].get()
                 ora_inizio = None
@@ -814,7 +882,7 @@ class ScadenzeApp:
                         datetime.strptime(ora_fine, "%H:%M")
                 
                 self.dati_completi["scadenze_personali"][voce] = {
-                    "data": data_str,
+                    "data": data_iso,  # Salva in formato ISO
                     "con_orario": con_orario,
                     "ora_inizio": ora_inizio,
                     "ora_fine": ora_fine
@@ -824,7 +892,7 @@ class ScadenzeApp:
             self.aggiorna_visualizzazione()
             messagebox.showinfo("Successo", "Scadenze personali salvate!")
         except ValueError as e:
-            messagebox.showerror("Errore", f"Formato non valido!\nDate: AAAA-MM-GG\nOrari: HH:MM")
+            messagebox.showerror("Errore", f"Formato non valido!\nDate: GG-MM-AAAA\nOrari: HH:MM")
     
     
     
