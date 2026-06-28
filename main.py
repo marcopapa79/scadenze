@@ -450,13 +450,25 @@ class ScadenzeApp:
             label_stato = tk.Label(self.temp_container, text="", font=self.normal_font, bg="#f0f0f0", width=30)
             label_stato.grid(row=row, column=2, padx=5)
             
+            # Pulsante modifica
+            btn_modifica = tk.Button(self.temp_container, text="✏️", 
+                                    command=lambda v=voce: self.modifica_scadenza_temp(v),
+                                    bg="#FF9800", fg="white", width=2)
+            btn_modifica.grid(row=row, column=3, padx=2)
+            
+            # Pulsante elimina
+            btn_elimina = tk.Button(self.temp_container, text="✕", 
+                                   command=lambda v=voce: self.elimina_scadenza_temp(v),
+                                   bg="#F44336", fg="white", width=2)
+            btn_elimina.grid(row=row, column=4, padx=2)
+            
             # Pulsante esporta su Google Calendar
             btn_calendar = tk.Button(self.temp_container, text="📅", 
                                     command=lambda v=voce: self.esporta_singola_scad_temp(v),
                                     bg="#4285F4", fg="white", width=2)
-            btn_calendar.grid(row=row, column=3, padx=2)
+            btn_calendar.grid(row=row, column=5, padx=2)
             
-            self.scadenze_temp_widgets[voce] = {"entry": entry, "label": label_stato, "btn_calendar": btn_calendar}
+            self.scadenze_temp_widgets[voce] = {"entry": entry, "label": label_stato, "btn_modifica": btn_modifica, "btn_elimina": btn_elimina, "btn_calendar": btn_calendar}
             row += 1
         
         btn_frame_temp = tk.Frame(temp_frame, bg="#f0f0f0")
@@ -481,6 +493,7 @@ class ScadenzeApp:
         tk.Label(self.km_container, text="Ultimo Km", font=self.title_font, bg="#f0f0f0").grid(row=row, column=1, pady=5)
         tk.Label(self.km_container, text="Prossimo Km", font=self.title_font, bg="#f0f0f0").grid(row=row, column=2, pady=5)
         tk.Label(self.km_container, text="Km Residui", font=self.title_font, bg="#f0f0f0").grid(row=row, column=3, pady=5)
+        tk.Label(self.km_container, text="Azioni", font=self.title_font, bg="#f0f0f0").grid(row=row, column=4, pady=5)
         row += 1
         
         for voce, info in sorted(dati["scadenze_chilometriche"].items(), key=lambda x: x[1]["prossimo_km"] - dati["km_attuali"]):
@@ -497,10 +510,36 @@ class ScadenzeApp:
             label_residui = tk.Label(self.km_container, text="", font=self.normal_font, bg="#f0f0f0", width=25)
             label_residui.grid(row=row, column=3, padx=5)
             
+            # Frame per pulsanti modifica/elimina/esporta
+            btn_frame_azioni = tk.Frame(self.km_container, bg="#f0f0f0")
+            btn_frame_azioni.grid(row=row, column=4, padx=5)
+            
+            # Pulsante modifica
+            btn_modifica = tk.Button(btn_frame_azioni, text="✏️", 
+                                    command=lambda v=voce: self.modifica_scadenza_km(v),
+                                    bg="#FF9800", fg="white", width=2)
+            btn_modifica.pack(side=tk.LEFT, padx=2)
+            
+            # Pulsante elimina
+            btn_elimina = tk.Button(btn_frame_azioni, text="✕", 
+                                   command=lambda v=voce: self.elimina_scadenza_km(v),
+                                   bg="#F44336", fg="white", width=2)
+            btn_elimina.pack(side=tk.LEFT, padx=2)
+            
+            # Pulsante esporta (nota: non applicabile per scadenze chilometriche senza data)
+            btn_esporta = tk.Button(btn_frame_azioni, text="📅", 
+                                   command=lambda v=voce: messagebox.showinfo("Info", 
+                                       "Le scadenze chilometriche non hanno date specifiche e non possono essere esportate su Google Calendar."),
+                                   bg="#4285F4", fg="white", width=2)
+            btn_esporta.pack(side=tk.LEFT, padx=2)
+            
             self.scadenze_km_widgets[voce] = {
                 "ultimo": ultimo_entry,
                 "prossimo": prossimo_entry,
-                "label": label_residui
+                "label": label_residui,
+                "btn_modifica": btn_modifica,
+                "btn_elimina": btn_elimina,
+                "btn_esporta": btn_esporta
             }
             row += 1
         
@@ -784,6 +823,92 @@ class ScadenzeApp:
             messagebox.showinfo("Successo", "Scadenze chilometriche salvate!")
         except ValueError:
             messagebox.showerror("Errore", "Inserisci numeri validi per i chilometri")
+    
+    def modifica_scadenza_temp(self, nome_scadenza):
+        """Modifica il nome di una scadenza temporale"""
+        nuovo_nome = simpledialog.askstring(
+            "Modifica Scadenza Temporale",
+            f"Nuovo nome per '{nome_scadenza}':",
+            initialvalue=nome_scadenza
+        )
+        
+        if not nuovo_nome or nuovo_nome == nome_scadenza:
+            return
+        
+        dati = self.get_dati_veicolo()
+        
+        # Controlla se il nuovo nome esiste già
+        if nuovo_nome in dati["scadenze_fisse"]:
+            messagebox.showerror("Errore", f"Una scadenza con il nome '{nuovo_nome}' esiste già!")
+            return
+        
+        # Sposta la scadenza dal vecchio nome al nuovo
+        dati["scadenze_fisse"][nuovo_nome] = dati["scadenze_fisse"].pop(nome_scadenza)
+        salva_dati(self.dati_completi)
+        
+        self.ricarica_interfaccia()
+        messagebox.showinfo("Successo", f"Scadenza rinominata da '{nome_scadenza}' a '{nuovo_nome}'!")
+    
+    def elimina_scadenza_temp(self, nome_scadenza):
+        """Elimina una scadenza temporale"""
+        conferma = messagebox.askyesno(
+            "Conferma Eliminazione",
+            f"Vuoi eliminare la scadenza '{nome_scadenza}'?",
+            icon='warning'
+        )
+        
+        if not conferma:
+            return
+        
+        dati = self.get_dati_veicolo()
+        del dati["scadenze_fisse"][nome_scadenza]
+        salva_dati(self.dati_completi)
+        
+        self.ricarica_interfaccia()
+        messagebox.showinfo("Successo", f"Scadenza '{nome_scadenza}' eliminata!")
+    
+    def modifica_scadenza_km(self, nome_scadenza):
+        """Modifica il nome di una scadenza chilometrica"""
+        nuovo_nome = simpledialog.askstring(
+            "Modifica Scadenza Chilometrica",
+            f"Nuovo nome per '{nome_scadenza}':",
+            initialvalue=nome_scadenza
+        )
+        
+        if not nuovo_nome or nuovo_nome == nome_scadenza:
+            return
+        
+        dati = self.get_dati_veicolo()
+        
+        # Controlla se il nuovo nome esiste già
+        if nuovo_nome in dati["scadenze_chilometriche"]:
+            messagebox.showerror("Errore", f"Una scadenza con il nome '{nuovo_nome}' esiste già!")
+            return
+        
+        # Sposta la scadenza dal vecchio nome al nuovo
+        dati["scadenze_chilometriche"][nuovo_nome] = dati["scadenze_chilometriche"].pop(nome_scadenza)
+        salva_dati(self.dati_completi)
+        
+        self.ricarica_interfaccia()
+        messagebox.showinfo("Successo", f"Scadenza rinominata da '{nome_scadenza}' a '{nuovo_nome}'!")
+    
+    def elimina_scadenza_km(self, nome_scadenza):
+        """Elimina una scadenza chilometrica"""
+        conferma = messagebox.askyesno(
+            "Conferma Eliminazione",
+            f"Vuoi eliminare la scadenza '{nome_scadenza}'?",
+            icon='warning'
+        )
+        
+        if not conferma:
+            return
+        
+        dati = self.get_dati_veicolo()
+        del dati["scadenze_chilometriche"][nome_scadenza]
+        salva_dati(self.dati_completi)
+        
+        self.ricarica_interfaccia()
+        messagebox.showinfo("Successo", f"Scadenza '{nome_scadenza}' eliminata!")
     
     def aggiungi_scadenza_personale(self):
         """Aggiunge una nuova scadenza personale"""

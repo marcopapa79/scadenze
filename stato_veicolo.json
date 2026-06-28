@@ -7,8 +7,7 @@
             "scadenze_fisse": {
                 "Bollo": "2026-08-31",
                 "Assicurazione": "2026-11-27",
-                "Revisione": "2027-12-31",
-                "cazzo": "2026-12-13"
+                "Revisione": "2027-12-31"
             },
             "scadenze_chilometriche": {
                 "Tagliando": {
@@ -40,7 +39,7 @@
             "scadenze_chilometriche": {}
         }
     },
-    "veicolo_selezionato": "Corolla (GD028MR)",
+    "veicolo_selezionato": "YARIS 1.0 business (GN183LR)",
     "scadenze_personali": {
         "Pagamento IMU prima rata": {
             "data": "2027-06-16",
@@ -77,6 +76,12 @@
             "con_orario": true,
             "ora_inizio": "11:00",
             "ora_fine": "12:00"
+        },
+        "Visita al gemelli per occhio Danilo": {
+            "data": "2026-09-17",
+            "con_orario": true,
+            "ora_inizio": "10:00",
+            "ora_fine": "11:00"
         }
     }
 }
