@@ -550,6 +550,16 @@ class ScadenzeApp:
                  bg="#4CAF50", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame_km, text="Salva Scadenze Chilometriche", command=self.salva_scadenze_km,
                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        
+        # LEGENDA TASTI
+        legenda_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        legenda_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        legenda_font = tkfont.Font(family="Helvetica", size=10, weight="bold")
+        tk.Label(legenda_frame, text="Legenda:", font=legenda_font, bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
+        tk.Label(legenda_frame, text="✏️ Modifica", font=self.normal_font, bg="#FFF3E0", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
+        tk.Label(legenda_frame, text="✕ Elimina", font=self.normal_font, bg="#FFEBEE", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
+        tk.Label(legenda_frame, text="📅 Esporta", font=self.normal_font, bg="#E3F2FD", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
     
     def toggle_orario_personale(self, voce):
         """Abilita/disabilita i campi orario quando il checkbox viene cliccato"""
