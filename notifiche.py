@@ -19,13 +19,13 @@ def controlla_e_notifica(dati_veicolo):
     notifiche_inviate = []
     
     # Controlla scadenze temporali
-    oggi = datetime.now()
+    oggi = datetime.now().date()
     for voce, data_str in dati_veicolo.get("scadenze_fisse", {}).items():
         try:
-            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d")
+            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d").date()
             giorni_rimasti = (data_scadenza - oggi).days
             
-            if giorni_rimasti <= 0:
+            if giorni_rimasti < 0:
                 # ROSSO - SCADUTO
                 invia_notifica_critica(
                     f"⚠️ SCADENZA SUPERATA - {nome_veicolo}",
@@ -119,7 +119,7 @@ def controlla_scadenze_personali(scadenze_personali):
     Gestisce sia il vecchio formato (stringhe) che il nuovo (dict con orari)
     """
     notifiche_inviate = []
-    oggi = datetime.now()
+    oggi = datetime.now().date()
     
     for voce, data_obj in scadenze_personali.items():
         try:
@@ -129,10 +129,10 @@ def controlla_scadenze_personali(scadenze_personali):
             else:
                 data_str = data_obj.get('data', '')
             
-            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d")
+            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d").date()
             giorni_rimasti = (data_scadenza - oggi).days
             
-            if giorni_rimasti <= 0:
+            if giorni_rimasti < 0:
                 # ROSSO - SCADUTO
                 invia_notifica_critica(
                     f"⚠️ SCADENZA PERSONALE SUPERATA",

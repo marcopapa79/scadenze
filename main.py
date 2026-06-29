@@ -1032,16 +1032,16 @@ class ScadenzeApp:
     
     
     def aggiorna_visualizzazione(self):
-        oggi = datetime.now()
+        oggi = datetime.now().date()
         dati = self.get_dati_veicolo()
         km_auto = dati["km_attuali"]
         
         for voce, widgets in self.scadenze_temp_widgets.items():
             data_str = dati["scadenze_fisse"][voce]
-            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d")
+            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d").date()
             giorni_rimasti = (data_scadenza - oggi).days
             
-            if giorni_rimasti <= 0:
+            if giorni_rimasti < 0:
                 colore = "red"
                 stato = f"⚠️ ERRORE: SCADUTO da {abs(giorni_rimasti)} giorni!"
             elif giorni_rimasti <= SOGLIA_GIORNI_PREAVVISO:
@@ -1076,10 +1076,10 @@ class ScadenzeApp:
                 data_obj = {'data': data_obj, 'con_orario': False, 'ora_inizio': None, 'ora_fine': None}
             
             data_str = data_obj.get('data', '')
-            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d")
+            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d").date()
             giorni_rimasti = (data_scadenza - oggi).days
             
-            if giorni_rimasti <= 0:
+            if giorni_rimasti < 0:
                 colore = "red"
                 stato = f"⚠️ ERRORE: SCADUTO da {abs(giorni_rimasti)} giorni!"
             elif giorni_rimasti <= SOGLIA_GIORNI_PREAVVISO:
