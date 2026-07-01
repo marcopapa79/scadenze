@@ -325,8 +325,11 @@ class ScadenzeApp:
             orario_inizio = data_obj.get('ora_inizio') if data_obj.get('con_orario') else None
             orario_fine = data_obj.get('ora_fine') if data_obj.get('con_orario') else None
         
+        # Se è una Visita, rimuovi la parola "Visita " dal nome nell'export
+        nome_evento = nome_scadenza.replace("Visita ", "", 1) if nome_scadenza.startswith("Visita ") else nome_scadenza
+        
         successo, risultato = google_calendar.esporta_singola_scadenza(
-            nome_scadenza=nome_scadenza,
+            nome_scadenza=nome_evento,
             data_scadenza=data_scadenza,
             tipo_scadenza="Scadenza personale",
             veicolo="",

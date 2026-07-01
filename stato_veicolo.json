@@ -59,12 +59,6 @@
             "ora_inizio": null,
             "ora_fine": null
         },
-        "Visita Skin Andres": {
-            "data": "2026-06-30",
-            "con_orario": false,
-            "ora_inizio": null,
-            "ora_fine": null
-        },
         "Tagliando Corolla ": {
             "data": "2026-07-16",
             "con_orario": true,
@@ -72,10 +66,10 @@
             "ora_fine": "11:30"
         },
         "Visita Trionfetti Aurora": {
-            "data": "2026-06-30",
+            "data": "2026-07-22",
             "con_orario": true,
-            "ora_inizio": "11:00",
-            "ora_fine": "12:00"
+            "ora_inizio": "09:30",
+            "ora_fine": "10:00"
         },
         "Visita al gemelli per occhio Danilo": {
             "data": "2026-09-17",
