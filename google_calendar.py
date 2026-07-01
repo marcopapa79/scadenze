@@ -83,7 +83,7 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
     
     Args:
         service: Servizio Google Calendar autenticato
-        nome_scadenza: Nome della scadenza
+        nome_scadenza: Nome della scadenza (può includere emoji e tipo)
         data_scadenza: Data in formato YYYY-MM-DD
         descrizione: Descrizione aggiuntiva (opzionale)
         calendario_id: ID del calendario (default: 'primary')
@@ -96,7 +96,7 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
     try:
         # Converti la data in formato Google Calendar
         evento = {
-            'summary': f'⚠️ Scadenza: {nome_scadenza}',
+            'summary': nome_scadenza,
             'description': descrizione,
             'reminders': {
                 'useDefault': False,
@@ -148,7 +148,7 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
     Args:
         nome_scadenza: Nome della scadenza
         data_scadenza: Data in formato YYYY-MM-DD
-        tipo_scadenza: Tipo (es. "Scadenza", "Scadenza personale", "Veicolo")
+        tipo_scadenza: Tipo (es. "Scadenza", "Visita", "Veicolo")
         veicolo: Nome del veicolo (opzionale)
         ora_inizio: Ora inizio in formato HH:MM (opzionale)
         ora_fine: Ora fine in formato HH:MM (opzionale)
@@ -170,8 +170,13 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
         if veicolo:
             descrizione = f"Veicolo: {veicolo}\n{descrizione}"
         
-        # Costruisci titolo evento
-        titolo = f"{veicolo} - {nome_scadenza}" if veicolo else nome_scadenza
+        # Costruisci titolo evento con prefisso emoji e tipo appropriati
+        if tipo_scadenza == "Visita":
+            titolo = f"🏥 Visita: {nome_scadenza}"
+        elif veicolo:
+            titolo = f"⚠️ {nome_scadenza}"
+        else:
+            titolo = f"⚠️ Scadenza: {nome_scadenza}"
         
         link = crea_evento_scadenza(service, titolo, data_scadenza, descrizione, cal_id, ora_inizio, ora_fine)
         
