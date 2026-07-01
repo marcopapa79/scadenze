@@ -54,10 +54,10 @@
             "ora_fine": null
         },
         "Visita Vadal\u00e0 Andr\u00e9s": {
-            "data": "2026-12-15",
-            "con_orario": false,
-            "ora_inizio": null,
-            "ora_fine": null
+            "data": "2027-02-17",
+            "con_orario": true,
+            "ora_inizio": "15:45",
+            "ora_fine": "16:45"
         },
         "Tagliando Corolla ": {
             "data": "2026-07-16",
