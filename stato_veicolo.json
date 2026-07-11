@@ -76,6 +76,18 @@
             "con_orario": true,
             "ora_inizio": "10:00",
             "ora_fine": "11:00"
+        },
+        "Post Ado servizi": {
+            "data": "2026-07-15",
+            "con_orario": true,
+            "ora_inizio": "09:30",
+            "ora_fine": "11:00"
+        },
+        "Chistolini": {
+            "data": "2026-07-29",
+            "con_orario": true,
+            "ora_inizio": "10:00",
+            "ora_fine": "11:30"
         }
     }
 }
