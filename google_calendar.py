@@ -4,6 +4,7 @@ Modulo per esportare scadenze su Google Calendar
 from datetime import datetime, timedelta
 import os.path
 import pickle
+import re
 
 try:
     from google.auth.transport.requests import Request
@@ -316,6 +317,124 @@ def esporta_tutto_su_calendar(dati_completi):
         risultati["personali"] = eventi
     
     return True, risultati
+
+
+def _normalizza_titolo_per_import(titolo):
+    """Normalizza il titolo evento per usarlo come nome scadenza personale."""
+    if not titolo:
+        return "Senza titolo"
+
+    nome = titolo.strip()
+
+    # Rimuove emoji/prefissi comuni usati durante l'export
+    prefissi = [
+        "🏥 Visita:",
+        "Visita:",
+        "⚠️ Scadenza:",
+        "Scadenza:",
+        "⚠️",
+    ]
+    for prefisso in prefissi:
+        if nome.lower().startswith(prefisso.lower()):
+            nome = nome[len(prefisso):].strip()
+            break
+
+    # Riduce spazi multipli
+    nome = re.sub(r"\s+", " ", nome).strip()
+    return nome or "Senza titolo"
+
+
+def _parse_google_datetime(valore_data):
+    """Converte date/dateTime Google in (data_iso, ora_inizio)."""
+    if not valore_data:
+        return None, None
+
+    if "date" in valore_data:
+        # Evento tutto il giorno
+        return valore_data["date"], None
+
+    data_ora = valore_data.get("dateTime")
+    if not data_ora:
+        return None, None
+
+    # Gestisce suffisso UTC 'Z' per fromisoformat
+    data_ora = data_ora.replace("Z", "+00:00")
+    dt_obj = datetime.fromisoformat(data_ora)
+    return dt_obj.strftime("%Y-%m-%d"), dt_obj.strftime("%H:%M")
+
+
+def leggi_eventi_calendar(data_inizio, giorni=15, nome_calendario='Famiglia', max_risultati=250):
+    """
+    Legge gli eventi da Google Calendar in una finestra temporale.
+
+    Args:
+        data_inizio: Data iniziale in formato YYYY-MM-DD
+        giorni: Numero di giorni da includere (default 15)
+        nome_calendario: Nome calendario da leggere (default: Famiglia)
+        max_risultati: Limite massimo eventi
+
+    Returns:
+        (bool successo, list|str risultato)
+    """
+    if not GOOGLE_DISPONIBILE:
+        return False, "Librerie Google non installate"
+
+    try:
+        giorni = int(giorni)
+        if giorni <= 0:
+            return False, "Il numero di giorni deve essere maggiore di 0"
+
+        data_start = datetime.strptime(data_inizio, "%Y-%m-%d")
+        data_end = data_start + timedelta(days=giorni)
+
+        time_min = data_start.strftime("%Y-%m-%dT00:00:00Z")
+        time_max = data_end.strftime("%Y-%m-%dT23:59:59Z")
+
+        service = autentica_google_calendar()
+        cal_id = trova_calendario_per_nome(service, nome_calendario)
+
+        response = service.events().list(
+            calendarId=cal_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            timeZone='Europe/Rome',
+            singleEvents=True,
+            orderBy='startTime',
+            maxResults=max_risultati,
+        ).execute()
+
+        eventi = []
+        for evento in response.get('items', []):
+            titolo_raw = evento.get('summary', 'Senza titolo')
+            nome_import = _normalizza_titolo_per_import(titolo_raw)
+
+            data_iso, ora_inizio = _parse_google_datetime(evento.get('start', {}))
+            _, ora_fine = _parse_google_datetime(evento.get('end', {}))
+
+            if not data_iso:
+                continue
+
+            con_orario = ora_inizio is not None
+            if not con_orario:
+                ora_fine = None
+
+            eventi.append({
+                "id": evento.get("id"),
+                "titolo": titolo_raw,
+                "nome_import": nome_import,
+                "data": data_iso,
+                "con_orario": con_orario,
+                "ora_inizio": ora_inizio,
+                "ora_fine": ora_fine,
+                "link": evento.get("htmlLink", ""),
+            })
+
+        return True, eventi
+
+    except FileNotFoundError as e:
+        return False, str(e)
+    except Exception as e:
+        return False, f"Errore: {str(e)}"
 
 
 if __name__ == "__main__":

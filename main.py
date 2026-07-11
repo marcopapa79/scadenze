@@ -276,6 +276,150 @@ class ScadenzeApp:
             messagebox.showinfo("Esportazione Completata", messaggio)
         else:
             messagebox.showerror("Errore Esportazione", risultato)
+
+    def _nome_personale_univoco(self, nome_base):
+        """Genera un nome univoco per scadenze personali evitando sovrascritture."""
+        nome = nome_base.strip() or "Senza titolo"
+        if nome not in self.dati_completi["scadenze_personali"]:
+            return nome
+
+        idx = 2
+        while True:
+            candidato = f"{nome} ({idx})"
+            if candidato not in self.dati_completi["scadenze_personali"]:
+                return candidato
+            idx += 1
+
+    def _chiave_duplicato_personale(self, nome, data_obj):
+        """Crea una chiave stabile per confrontare duplicati personali."""
+        if isinstance(data_obj, str):
+            data = data_obj
+            ora_inizio = None
+            con_orario = False
+        else:
+            data = data_obj.get("data")
+            ora_inizio = data_obj.get("ora_inizio")
+            con_orario = data_obj.get("con_orario", False)
+
+        return (nome.strip().lower(), data, con_orario, ora_inizio)
+
+    def importa_personali_da_calendar(self):
+        """Importa eventi da Google Calendar in scadenze personali con filtro data/giorni."""
+        if not GOOGLE_CALENDAR_DISPONIBILE:
+            messagebox.showerror(
+                "Errore", 
+                "Modulo Google Calendar non disponibile.\n\n"
+                "Per installare:\n"
+                "pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client"
+            )
+            return
+
+        oggi_ita = datetime.now().strftime("%d-%m-%Y")
+        data_inizio_ita = simpledialog.askstring(
+            "Importa da Google Calendar",
+            "Data inizio ricerca (GG-MM-AAAA):",
+            initialvalue=oggi_ita,
+        )
+        if not data_inizio_ita:
+            return
+
+        try:
+            data_inizio_iso = data_italiana_a_iso(data_inizio_ita)
+            datetime.strptime(data_inizio_iso, "%Y-%m-%d")
+        except ValueError:
+            messagebox.showerror("Errore", "Data non valida! Usa il formato GG-MM-AAAA")
+            return
+
+        giorni = simpledialog.askinteger(
+            "Importa da Google Calendar",
+            "Numero giorni da cercare (es. 15):",
+            initialvalue=15,
+            minvalue=1,
+            maxvalue=3650,
+        )
+        if giorni is None:
+            return
+
+        successo, risultato = google_calendar.leggi_eventi_calendar(
+            data_inizio=data_inizio_iso,
+            giorni=giorni,
+            nome_calendario='Famiglia',
+        )
+
+        if not successo:
+            messagebox.showerror("Errore Importazione", risultato)
+            return
+
+        eventi = risultato
+        if not eventi:
+            messagebox.showinfo(
+                "Importazione",
+                "Nessun evento trovato nel periodo selezionato.",
+            )
+            return
+
+        esistenti = set(
+            self._chiave_duplicato_personale(nome, data_obj)
+            for nome, data_obj in self.dati_completi.get("scadenze_personali", {}).items()
+        )
+
+        importati = 0
+        duplicati = 0
+        saltati = 0
+
+        for evento in eventi:
+            nome_import = evento.get("nome_import", "Senza titolo")
+            data_evento = evento.get("data")
+            con_orario = evento.get("con_orario", False)
+            ora_inizio = evento.get("ora_inizio") if con_orario else None
+            ora_fine = evento.get("ora_fine") if con_orario else None
+
+            chiave = (nome_import.strip().lower(), data_evento, con_orario, ora_inizio)
+            if chiave in esistenti:
+                duplicati += 1
+                continue
+
+            testo = (
+                f"Titolo: {evento.get('titolo', nome_import)}\n"
+                f"Data: {data_iso_a_italiana(data_evento)}"
+            )
+            if con_orario and ora_inizio:
+                testo += f"\nOrario: {ora_inizio}"
+                if ora_fine:
+                    testo += f" - {ora_fine}"
+
+            testo += "\n\nImportare questa voce nelle scadenze personali?"
+
+            conferma = messagebox.askyesnocancel("Importazione Evento", testo)
+            if conferma is None:
+                break
+            if not conferma:
+                saltati += 1
+                continue
+
+            nome_finale = self._nome_personale_univoco(nome_import)
+            self.dati_completi["scadenze_personali"][nome_finale] = {
+                "data": data_evento,
+                "con_orario": con_orario,
+                "ora_inizio": ora_inizio,
+                "ora_fine": ora_fine,
+            }
+            esistenti.add(chiave)
+            importati += 1
+
+        if importati > 0:
+            salva_dati(self.dati_completi)
+            self.ricarica_interfaccia()
+
+        messagebox.showinfo(
+            "Importazione completata",
+            (
+                f"Eventi trovati: {len(eventi)}\n"
+                f"Importati: {importati}\n"
+                f"Duplicati ignorati: {duplicati}\n"
+                f"Saltati manualmente: {saltati}"
+            ),
+        )
     
     def esporta_singola_scad_temp(self, nome_scadenza):
         """Esporta una singola scadenza temporale del veicolo su Google Calendar"""
@@ -593,6 +737,9 @@ class ScadenzeApp:
         if GOOGLE_CALENDAR_DISPONIBILE:
             tk.Button(header_frame, text="📅 Esporta su Calendar", command=self.esporta_personali_su_calendar, 
                      bg="#4285F4", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
+
+            tk.Button(header_frame, text="📥 Importa da Calendar", command=self.importa_personali_da_calendar,
+                     bg="#0F9D58", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
         
         if NOTIFICHE_DISPONIBILI:
             tk.Button(header_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche, 
