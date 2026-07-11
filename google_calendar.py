@@ -7,6 +7,7 @@ import pickle
 
 try:
     from google.auth.transport.requests import Request
+    from google.auth.exceptions import RefreshError
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
     from googleapiclient.discovery import build
@@ -37,24 +38,31 @@ def autentica_google_calendar():
     
     # Se non ci sono credenziali valide, richiedi l'autenticazione
     if not creds or not creds.valid:
+        if not os.path.exists(CREDENTIALS_FILE):
+            raise FileNotFoundError(
+                f"File {CREDENTIALS_FILE} non trovato!\n\n"
+                "Per usare Google Calendar:\n"
+                "1. Vai su https://console.cloud.google.com\n"
+                "2. Crea un progetto\n"
+                "3. Abilita Google Calendar API\n"
+                "4. Crea credenziali OAuth 2.0\n"
+                "5. Scarica il file credentials.json in questa cartella"
+            )
+
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not os.path.exists(CREDENTIALS_FILE):
-                raise FileNotFoundError(
-                    f"File {CREDENTIALS_FILE} non trovato!\n\n"
-                    "Per usare Google Calendar:\n"
-                    "1. Vai su https://console.cloud.google.com\n"
-                    "2. Crea un progetto\n"
-                    "3. Abilita Google Calendar API\n"
-                    "4. Crea credenziali OAuth 2.0\n"
-                    "5. Scarica il file credentials.json in questa cartella"
-                )
-            
+            try:
+                creds.refresh(Request())
+            except RefreshError:
+                # Token revocato/non piu valido: forza nuovo login OAuth
+                creds = None
+                if os.path.exists(TOKEN_FILE):
+                    os.remove(TOKEN_FILE)
+
+        if not creds or not creds.valid:
             flow = InstalledAppFlow.from_client_secrets_file(
                 CREDENTIALS_FILE, SCOPES)
             creds = flow.run_local_server(port=0)
-        
+
         # Salva il token per la prossima volta
         with open(TOKEN_FILE, 'wb') as token:
             pickle.dump(creds, token)
