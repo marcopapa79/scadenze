@@ -24,22 +24,18 @@
                 }
             }
         },
-        "Yaris (CJ028ZZ)": {
-            "nome_veicolo": "Yaris",
-            "targa": "CJ028ZZ",
-            "km_attuali": 0,
-            "scadenze_fisse": {},
-            "scadenze_chilometriche": {}
-        },
         "YARIS 1.0 business (GN183LR)": {
             "nome_veicolo": "YARIS 1.0 business",
             "targa": "GN183LR",
-            "km_attuali": 60500,
-            "scadenze_fisse": {},
+            "km_attuali": 60740,
+            "scadenze_fisse": {
+                "Taiando Toyota": "2027-07-01",
+                "Revisione": "2027-03-30"
+            },
             "scadenze_chilometriche": {}
         }
     },
-    "veicolo_selezionato": "Corolla (GD028MR)",
+    "veicolo_selezionato": "YARIS 1.0 business (GN183LR)",
     "scadenze_personali": {
         "Pagamento IMU prima rata": {
             "data": "2027-06-16",
@@ -78,7 +74,7 @@
             "ora_fine": "11:00"
         },
         "Post Ado servizi": {
-            "data": "2026-07-15",
+            "data": "2026-08-26",
             "con_orario": true,
             "ora_inizio": "09:30",
             "ora_fine": "11:00"
