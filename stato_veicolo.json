@@ -3,16 +3,17 @@
         "Corolla (GD028MR)": {
             "nome_veicolo": "Corolla",
             "targa": "GD028MR",
-            "km_attuali": 89674,
+            "km_attuali": 89828,
             "scadenze_fisse": {
                 "Bollo": "2026-08-31",
                 "Assicurazione": "2026-11-27",
-                "Revisione": "2026-11-30"
+                "Revisione": "2026-11-30",
+                "Tagliando": "2027-07-16"
             },
             "scadenze_chilometriche": {
                 "Tagliando": {
-                    "ultimo_km": 0,
-                    "prossimo_km": 91400
+                    "ultimo_km": 89818,
+                    "prossimo_km": 104818
                 },
                 "Freni": {
                     "ultimo_km": 0,
@@ -29,10 +30,15 @@
             "targa": "GN183LR",
             "km_attuali": 60740,
             "scadenze_fisse": {
-                "Taiando Toyota": "2027-07-01",
-                "Revisione": "2027-03-30"
+                "Revisione": "2027-03-30",
+                "Tagliando": "2027-07-01"
             },
-            "scadenze_chilometriche": {}
+            "scadenze_chilometriche": {
+                "Tagliando": {
+                    "ultimo_km": 60634,
+                    "prossimo_km": 75634
+                }
+            }
         }
     },
     "veicolo_selezionato": "Corolla (GD028MR)",
@@ -55,12 +61,6 @@
             "ora_inizio": "15:45",
             "ora_fine": "16:45"
         },
-        "Tagliando Corolla ": {
-            "data": "2026-07-16",
-            "con_orario": true,
-            "ora_inizio": "08:30",
-            "ora_fine": "11:30"
-        },
         "Visita Trionfetti Aurora": {
             "data": "2026-07-22",
             "con_orario": true,
@@ -80,10 +80,16 @@
             "ora_fine": "11:00"
         },
         "Chistolini": {
-            "data": "2026-07-29",
+            "data": "2026-07-22",
             "con_orario": true,
             "ora_inizio": "10:00",
             "ora_fine": "11:30"
+        },
+        "Chistolini sostenitori": {
+            "data": "2026-07-29",
+            "con_orario": true,
+            "ora_inizio": "21:00",
+            "ora_fine": "22:00"
         }
     }
 }
