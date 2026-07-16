@@ -721,9 +721,19 @@ class ScadenzeApp:
             stato = tk.NORMAL if widgets["var_orario"].get() else tk.DISABLED
             widgets["entry_inizio"].config(state=stato)
             widgets["entry_fine"].config(state=stato)
+
+    def _is_visita_personale(self, voce):
+        """Determina se una voce personale appartiene alle visite mediche."""
+        voce_lower = voce.lower()
+        return "visita" in voce_lower or "medic" in voce_lower
+
+    def _is_visita_da_prenotare(self, voce):
+        """Riconosce le visite ancora da prenotare in base al nome della voce."""
+        voce_lower = voce.lower()
+        return "prenotare" in voce_lower or "da prenotare" in voce_lower
     
     def crea_tab_personali(self, parent):
-        """Crea il tab per le scadenze personali (casa, ISEE, ecc.) diviso in Visite e Scadenze"""
+        """Crea il tab per le scadenze personali, diviso in visite e altre scadenze."""
         main_frame = tk.Frame(parent, bg="#f0f0f0")
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
@@ -757,13 +767,21 @@ class ScadenzeApp:
         tk.Label(legenda_frame, text="✕ Cancella", font=self.normal_font, bg="#FFEBEE", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
         tk.Label(legenda_frame, text="📅 Esporta", font=self.normal_font, bg="#E3F2FD", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
         
-        # SEZIONE VISITE
-        visite_frame = tk.LabelFrame(main_frame, text="Visite Mediche", 
+        # SEZIONE VISITE PRENOTATE
+        visite_frame = tk.LabelFrame(main_frame, text="Visite Mediche prenotate", 
                                      font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
         visite_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
         
         visite_container = tk.Frame(visite_frame, bg="#f0f0f0")
         visite_container.pack(fill=tk.BOTH, expand=True)
+
+        # SEZIONE VISITE DA PRENOTARE
+        visite_prenotare_frame = tk.LabelFrame(main_frame, text="Visite da prenotare entro il", 
+                               font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+        visite_prenotare_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
+
+        visite_prenotare_container = tk.Frame(visite_prenotare_frame, bg="#f0f0f0")
+        visite_prenotare_container.pack(fill=tk.BOTH, expand=True)
         
         # SEZIONE SCADENZE
         scad_frame = tk.LabelFrame(main_frame, text="Scadenze (Casa, ISEE, Documenti, Altro)", 
@@ -773,12 +791,15 @@ class ScadenzeApp:
         scad_container = tk.Frame(scad_frame, bg="#f0f0f0")
         scad_container.pack(fill=tk.BOTH, expand=True)
         
-        # Separazione visite da scadenze
+        # Separazione visite prenotate, visite da prenotare e altre scadenze
         visite_dict = {}
+        visite_da_prenotare_dict = {}
         scadenze_dict = {}
         
         for voce, data_obj in self.dati_completi.get("scadenze_personali", {}).items():
-            if "Visita" in voce:
+            if self._is_visita_personale(voce) and self._is_visita_da_prenotare(voce):
+                visite_da_prenotare_dict[voce] = data_obj
+            elif self._is_visita_personale(voce):
                 visite_dict[voce] = data_obj
             else:
                 scadenze_dict[voce] = data_obj
@@ -791,7 +812,17 @@ class ScadenzeApp:
         
         # Se non ci sono visite, mostra messaggio
         if row_visite == 0:
-            tk.Label(visite_container, text="Nessuna visita programmata", 
+            tk.Label(visite_container, text="Nessuna visita prenotata", 
+                    font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
+
+        # Rendering VISITE DA PRENOTARE
+        row_visite_prenotare = 0
+        for voce, data_obj in sorted(visite_da_prenotare_dict.items(), key=lambda x: x[1]['data'] if isinstance(x[1], dict) else x[1]):
+            self._crea_riga_personale(visite_prenotare_container, voce, data_obj, row_visite_prenotare)
+            row_visite_prenotare += 1
+
+        if row_visite_prenotare == 0:
+            tk.Label(visite_prenotare_container, text="Nessuna visita da prenotare", 
                     font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
         
         # Rendering SCADENZE
@@ -1079,7 +1110,7 @@ class ScadenzeApp:
     def aggiungi_scadenza_personale(self):
         """Aggiunge una nuova scadenza personale"""
         nome = simpledialog.askstring("Nuova Scadenza Personale", 
-                                      "Nome della scadenza (es: IMU, ISEE, Passaporto):")
+                                      "Nome della scadenza (es: IMU, ISEE, Passaporto, Visita da prenotare):")
         if not nome:
             return
         
