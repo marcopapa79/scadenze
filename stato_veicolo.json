@@ -90,6 +90,18 @@
             "con_orario": true,
             "ora_inizio": "21:00",
             "ora_fine": "22:00"
+        },
+        "Visita Medico Sportiva Aurora da prenotare": {
+            "data": "2026-12-16",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null
+        },
+        "Visita Medico sportiva Andres da prenotare": {
+            "data": "2027-06-08",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null
         }
     }
 }

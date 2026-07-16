@@ -90,7 +90,9 @@ python main.py
 - **+ Nuova Scadenza Km**: Aggiunge scadenze chilometriche
 
 **Tab Scadenze Personali:**
-- **+ Nuova Scadenza Personale**: Aggiunge una nuova scadenza (ISEE, Casa, ecc.)
+- **+ Nuova Scadenza**: Aggiunge una nuova scadenza personale (ISEE, Casa, documenti, ecc.)
+- **+ Nuova Visita Prenotata**: Aggiunge una visita gia prenotata
+- **+ Nuova Visita da Prenotare**: Aggiunge un promemoria visita da prenotare entro una data
 - **✕** (pulsante rosso): Elimina la scadenza specifica
 - **🔔 Controlla Scadenze**: Verifica tutte le scadenze (veicoli + personali)
 - **📅 Esporta su Calendar**: Esporta scadenze personali su Google Calendar

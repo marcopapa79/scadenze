@@ -520,6 +520,9 @@ class ScadenzeApp:
         
         # Crea contenuto tab scadenze personali
         self.crea_tab_personali(tab_personali)
+
+        # Apri di default il tab delle scadenze personali
+        self.notebook.select(tab_personali)
     
     def crea_tab_veicoli(self, parent):
         """Crea il tab per la gestione veicoli"""
@@ -840,8 +843,15 @@ class ScadenzeApp:
         btn_frame = tk.Frame(main_frame, bg="#f0f0f0")
         btn_frame.pack(fill=tk.X, pady=5)
         
-        tk.Button(btn_frame, text="+ Nuova Scadenza Personale", command=self.aggiungi_scadenza_personale,
-                 bg="#4CAF50", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="+ Nuova Scadenza",
+             command=lambda: self.aggiungi_scadenza_personale("scadenza"),
+             bg="#4CAF50", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="+ Nuova Visita Prenotata",
+             command=lambda: self.aggiungi_scadenza_personale("visita_prenotata"),
+             bg="#009688", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="+ Nuova Visita da Prenotare",
+             command=lambda: self.aggiungi_scadenza_personale("visita_da_prenotare"),
+             bg="#FF9800", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Salva Scadenze Personali", command=self.salva_scadenze_personali,
                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
     
@@ -852,7 +862,7 @@ class ScadenzeApp:
             data_obj = {'data': data_obj, 'con_orario': False, 'ora_inizio': None, 'ora_fine': None}
         
         tk.Label(container, text=f"{voce}:", 
-                font=self.normal_font, bg="#f0f0f0", width=28, anchor=tk.W).grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
+            font=self.normal_font, bg="#f0f0f0", width=42, anchor=tk.W).grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
         
         entry = tk.Entry(container, font=self.normal_font, width=15)
         entry.grid(row=row, column=1, padx=5)
@@ -1107,26 +1117,52 @@ class ScadenzeApp:
         self.ricarica_interfaccia()
         messagebox.showinfo("Successo", f"Scadenza '{nome_scadenza}' eliminata!")
     
-    def aggiungi_scadenza_personale(self):
-        """Aggiunge una nuova scadenza personale"""
-        nome = simpledialog.askstring("Nuova Scadenza Personale", 
-                                      "Nome della scadenza (es: IMU, ISEE, Passaporto, Visita da prenotare):")
-        if not nome:
-            return
-        
-        data = simpledialog.askstring("Nuova Scadenza Personale", 
-                                      "Data scadenza (GG-MM-AAAA):")
+    def aggiungi_scadenza_personale(self, tipo="scadenza"):
+        """Aggiunge una nuova scadenza personale, visita prenotata o visita da prenotare."""
+        if tipo == "visita_prenotata":
+            titolo = "Nuova Visita Prenotata"
+            nome_base = simpledialog.askstring(
+                titolo,
+                "Nome visita (es: Visita cardiologica, Controllo oculistico):"
+            )
+            if not nome_base:
+                return
+            nome_finale = nome_base.strip()
+            prompt_data = "Data visita (GG-MM-AAAA):"
+        elif tipo == "visita_da_prenotare":
+            titolo = "Nuova Visita da Prenotare"
+            nome_base = simpledialog.askstring(
+                titolo,
+                "Nome visita da prenotare (es: Visita cardiologica, Controllo oculistico):"
+            )
+            if not nome_base:
+                return
+            nome_finale = f"{nome_base.strip()} da prenotare"
+            prompt_data = "Da prenotare entro il (GG-MM-AAAA):"
+        else:
+            titolo = "Nuova Scadenza"
+            nome_finale = simpledialog.askstring(
+                titolo,
+                "Nome della scadenza (es: IMU, ISEE, Passaporto):"
+            )
+            if not nome_finale:
+                return
+            nome_finale = nome_finale.strip()
+            prompt_data = "Data scadenza (GG-MM-AAAA):"
+
+        data = simpledialog.askstring(titolo, prompt_data)
         if not data:
             return
-        
+
         try:
             data_obj = datetime.strptime(data, "%d-%m-%Y")
-            data = data_obj.strftime("%Y-%m-%d")  # Converti in formato interno
+            data = data_obj.strftime("%Y-%m-%d")
         except ValueError:
-            messagebox.showerror("Errore", "Data non valida! Usa il formato AAAA-MM-GG")
+            messagebox.showerror("Errore", "Data non valida! Usa il formato GG-MM-AAAA")
             return
-        
-        self.dati_completi["scadenze_personali"][nome] = {
+
+        nome_finale = self._nome_personale_univoco(nome_finale)
+        self.dati_completi["scadenze_personali"][nome_finale] = {
             "data": data,
             "con_orario": False,
             "ora_inizio": None,
@@ -1135,7 +1171,7 @@ class ScadenzeApp:
         salva_dati(self.dati_completi)
         
         self.ricarica_interfaccia()
-        messagebox.showinfo("Successo", f"Scadenza '{nome}' aggiunta!")
+        messagebox.showinfo("Successo", f"Scadenza '{nome_finale}' aggiunta!")
     
     def modifica_scadenza_personale(self, nome_scadenza):
         """Modifica il nome di una scadenza personale"""
