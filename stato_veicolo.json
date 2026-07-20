@@ -80,13 +80,13 @@
             "ora_fine": "11:00"
         },
         "Chistolini": {
-            "data": "2026-07-22",
+            "data": "2026-07-29",
             "con_orario": true,
             "ora_inizio": "10:00",
             "ora_fine": "11:30"
         },
         "Chistolini sostenitori": {
-            "data": "2026-07-29",
+            "data": "2026-07-22",
             "con_orario": true,
             "ora_inizio": "21:00",
             "ora_fine": "22:00"
@@ -97,7 +97,7 @@
             "ora_inizio": null,
             "ora_fine": null
         },
-        "Visita Medico sportiva Andres da prenotare": {
+        "Visita Medico Sportiva Andres da prenotare": {
             "data": "2027-06-08",
             "con_orario": false,
             "ora_inizio": null,
