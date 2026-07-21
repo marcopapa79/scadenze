@@ -25,6 +25,18 @@ TOKEN_FILE = 'token.pickle'
 CREDENTIALS_FILE = 'credentials.json'
 
 
+def _nome_veicolo_solo_nome(nome_veicolo):
+    """Restituisce solo il nome veicolo, rimuovendo un'eventuale targa tra parentesi."""
+    if not nome_veicolo:
+        return ""
+
+    nome_pulito = nome_veicolo.strip()
+    match = re.match(r"^(.*?)\s*\([^)]+\)\s*$", nome_pulito)
+    if match:
+        return match.group(1).strip()
+    return nome_pulito
+
+
 def autentica_google_calendar():
     """
     Autentica l'utente con Google Calendar
@@ -174,16 +186,21 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
         # Trova il calendario "Famiglia"
         cal_id = trova_calendario_per_nome(service, 'Famiglia')
         
+        veicolo_nome = _nome_veicolo_solo_nome(veicolo)
+
         # Costruisci descrizione
         descrizione = f"Tipo: {tipo_scadenza}"
-        if veicolo:
-            descrizione = f"Veicolo: {veicolo}\n{descrizione}"
+        if veicolo_nome:
+            descrizione = f"Veicolo: {veicolo_nome}\n{descrizione}"
         
         # Costruisci titolo evento con prefisso emoji e tipo appropriati
         if tipo_scadenza == "Visita":
             titolo = f"🏥 Visita: {nome_scadenza}"
-        elif veicolo:
+        elif tipo_scadenza == "Personale":
+            # Per le scadenze personali evitiamo la dicitura "Scadenza"
             titolo = f"⚠️ {nome_scadenza}"
+        elif veicolo_nome:
+            titolo = f"⚠️ {nome_scadenza} - {veicolo_nome}"
         else:
             titolo = f"⚠️ Scadenza: {nome_scadenza}"
         
@@ -209,13 +226,14 @@ def esporta_scadenze_veicolo(dati_veicolo, nome_veicolo):
         service = autentica_google_calendar()
         cal_id = trova_calendario_per_nome(service, 'Famiglia')
         eventi_creati = []
+        nome_veicolo_pulito = _nome_veicolo_solo_nome(nome_veicolo)
         
         # Esporta scadenze temporali
         for nome_scadenza, data in dati_veicolo.get("scadenze_fisse", {}).items():
-            descrizione = f"Veicolo: {nome_veicolo}\nTipo: Scadenza temporale\nComponente: {nome_scadenza}"
+            descrizione = f"Veicolo: {nome_veicolo_pulito}\nTipo: Scadenza temporale\nComponente: {nome_scadenza}"
             link = crea_evento_scadenza(
                 service, 
-                f"{nome_veicolo} - {nome_scadenza}",
+                f"{nome_scadenza} - {nome_veicolo_pulito}",
                 data,
                 descrizione,
                 cal_id
@@ -234,7 +252,7 @@ def esporta_scadenze_veicolo(dati_veicolo, nome_veicolo):
                 data_stimata = (datetime.now() + timedelta(days=giorni_stimati)).strftime("%Y-%m-%d")
                 
                 descrizione = (
-                    f"Veicolo: {nome_veicolo}\n"
+                    f"Veicolo: {nome_veicolo_pulito}\n"
                     f"Tipo: Scadenza chilometrica\n"
                     f"Componente: {nome_scadenza}\n"
                     f"Km attuali: {km_attuali}\n"
@@ -245,7 +263,7 @@ def esporta_scadenze_veicolo(dati_veicolo, nome_veicolo):
                 
                 link = crea_evento_scadenza(
                     service,
-                    f"{nome_veicolo} - {nome_scadenza} ({info['prossimo_km']} km)",
+                    f"{nome_scadenza} ({info['prossimo_km']} km) - {nome_veicolo_pulito}",
                     data_stimata,
                     descrizione,
                     cal_id

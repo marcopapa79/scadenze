@@ -481,7 +481,7 @@ class ScadenzeApp:
         successo, risultato = google_calendar.esporta_singola_scadenza(
             nome_scadenza=nome_evento,
             data_scadenza=data_scadenza,
-            tipo_scadenza=tipo_scadenza,
+            tipo_scadenza="Visita" if tipo_scadenza == "Visita" else "Personale",
             veicolo="",
             ora_inizio=orario_inizio,
             ora_fine=orario_fine
