@@ -114,6 +114,24 @@
             "con_orario": false,
             "ora_inizio": null,
             "ora_fine": null
+        },
+        "Ceretta Aurora": {
+            "data": "2026-07-28",
+            "con_orario": true,
+            "ora_inizio": "10:00",
+            "ora_fine": null
+        },
+        "Parruchiera Danilo": {
+            "data": "2026-07-30",
+            "con_orario": true,
+            "ora_inizio": "09:30",
+            "ora_fine": null
+        },
+        "Ceretta Beatrice": {
+            "data": "2026-07-30",
+            "con_orario": true,
+            "ora_inizio": "11:30",
+            "ora_fine": null
         }
     }
 }
