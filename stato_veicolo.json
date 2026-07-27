@@ -8,7 +8,8 @@
                 "Bollo": "2026-08-31",
                 "Assicurazione": "2026-11-27",
                 "Revisione": "2026-11-30",
-                "Tagliando": "2027-07-16"
+                "Tagliando": "2027-07-16",
+                "Inversione Gomme": "2026-07-28"
             },
             "scadenze_chilometriche": {
                 "Tagliando": {
@@ -84,12 +85,6 @@
             "con_orario": true,
             "ora_inizio": "10:00",
             "ora_fine": "11:30"
-        },
-        "Chistolini sostenitori": {
-            "data": "2026-07-22",
-            "con_orario": true,
-            "ora_inizio": "21:00",
-            "ora_fine": "22:00"
         },
         "Visita Medico Sportiva Aurora da prenotare": {
             "data": "2026-12-16",
