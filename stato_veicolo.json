@@ -32,7 +32,8 @@
             "km_attuali": 60740,
             "scadenze_fisse": {
                 "Revisione": "2027-03-30",
-                "Tagliando": "2027-07-01"
+                "Tagliando": "2027-07-01",
+                "Bollo": "2027-04-30"
             },
             "scadenze_chilometriche": {
                 "Tagliando": {
@@ -42,7 +43,7 @@
             }
         }
     },
-    "veicolo_selezionato": "Corolla (GD028MR)",
+    "veicolo_selezionato": "YARIS 1.0 business (GN183LR)",
     "scadenze_personali": {
         "Pagamento IMU prima rata": {
             "data": "2027-06-16",
