@@ -29,7 +29,7 @@
         "YARIS 1.0 business (GN183LR)": {
             "nome_veicolo": "YARIS 1.0 business",
             "targa": "GN183LR",
-            "km_attuali": 60740,
+            "km_attuali": 60940,
             "scadenze_fisse": {
                 "Revisione": "2027-03-30",
                 "Tagliando": "2027-07-01",
@@ -109,12 +109,6 @@
             "data": "2026-09-06",
             "con_orario": false,
             "ora_inizio": null,
-            "ora_fine": null
-        },
-        "Ceretta Aurora": {
-            "data": "2026-07-28",
-            "con_orario": true,
-            "ora_inizio": "10:00",
             "ora_fine": null
         },
         "Parruchiera Danilo": {
