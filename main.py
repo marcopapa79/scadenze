@@ -144,7 +144,7 @@ class ScadenzeApp:
         self.veicolo_corrente = self.veicolo_combo.get()
         self.dati_completi["veicolo_selezionato"] = self.veicolo_corrente
         salva_dati(self.dati_completi)
-        self.ricarica_interfaccia()
+        self.ricarica_interfaccia(tab_da_aprire="veicoli")
     
     def aggiungi_veicolo(self):
         """Aggiunge un nuovo veicolo"""
@@ -492,17 +492,17 @@ class ScadenzeApp:
         else:
             messagebox.showerror("Errore Esportazione", risultato)
     
-    def ricarica_interfaccia(self):
+    def ricarica_interfaccia(self, tab_da_aprire="personali"):
         """Ricarica l'interfaccia con i dati del veicolo corrente"""
         # Distruggi tutti i widget
         for widget in self.root.winfo_children():
             widget.destroy()
         
         # Ricrea l'interfaccia
-        self.crea_interfaccia()
+        self.crea_interfaccia(tab_da_aprire=tab_da_aprire)
         self.aggiorna_visualizzazione()
     
-    def crea_interfaccia(self):
+    def crea_interfaccia(self, tab_da_aprire="personali"):
         # Crea Notebook (tabs)
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -521,8 +521,12 @@ class ScadenzeApp:
         # Crea contenuto tab scadenze personali
         self.crea_tab_personali(tab_personali)
 
-        # Apri di default il tab delle scadenze personali
-        self.notebook.select(tab_personali)
+        # Se richiesto, resta sul tab Veicoli (es. cambio veicolo)
+        if tab_da_aprire == "veicoli":
+            self.notebook.select(tab_veicoli)
+        else:
+            # Default: tab Scadenze Personali
+            self.notebook.select(tab_personali)
     
     def crea_tab_veicoli(self, parent):
         """Crea il tab per la gestione veicoli"""
