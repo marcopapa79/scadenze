@@ -722,10 +722,10 @@ class ScadenzeApp:
                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
     
     def toggle_orario_personale(self, voce):
-        """Abilita/disabilita i campi orario quando il checkbox viene cliccato"""
+        """Abilita/disabilita i campi orario quando cambia il checkbox"""
         if voce in self.scadenze_personali_widgets:
             widgets = self.scadenze_personali_widgets[voce]
-            stato = tk.NORMAL if widgets["var_orario"].get() else tk.DISABLED
+            stato = tk.DISABLED if widgets["var_tutto_giorno"].get() else tk.NORMAL
             widgets["entry_inizio"].config(state=stato)
             widgets["entry_fine"].config(state=stato)
 
@@ -872,10 +872,10 @@ class ScadenzeApp:
         entry.grid(row=row, column=1, padx=5)
         entry.insert(0, data_iso_a_italiana(data_obj['data']))
         
-        # Checkbox per abilitare orario
-        var_orario = tk.BooleanVar(value=data_obj.get('con_orario', False))
-        chk_orario = tk.Checkbutton(container, text="⏰", variable=var_orario, 
-                                   bg="#f0f0f0", font=self.normal_font, width=2,
+        # Checkbox per indicare un evento senza orario
+        var_tutto_giorno = tk.BooleanVar(value=not data_obj.get('con_orario', False))
+        chk_orario = tk.Checkbutton(container, text="Tutto il giorno", variable=var_tutto_giorno,
+                       bg="#f0f0f0", font=self.normal_font,
                                    command=lambda v=voce: self.toggle_orario_personale(v))
         chk_orario.grid(row=row, column=2, padx=2)
         
@@ -883,12 +883,12 @@ class ScadenzeApp:
         entry_inizio = tk.Entry(container, font=self.normal_font, width=8)
         entry_inizio.grid(row=row, column=3, padx=2)
         entry_inizio.insert(0, data_obj.get('ora_inizio') or "HH:MM")
-        entry_inizio.config(state=tk.NORMAL if data_obj.get('con_orario') else tk.DISABLED)
+        entry_inizio.config(state=tk.DISABLED if var_tutto_giorno.get() else tk.NORMAL)
         
         entry_fine = tk.Entry(container, font=self.normal_font, width=8)
         entry_fine.grid(row=row, column=4, padx=2)
         entry_fine.insert(0, data_obj.get('ora_fine') or "HH:MM")
-        entry_fine.config(state=tk.NORMAL if data_obj.get('con_orario') else tk.DISABLED)
+        entry_fine.config(state=tk.DISABLED if var_tutto_giorno.get() else tk.NORMAL)
         
         label_stato = tk.Label(container, text="", 
                               font=self.normal_font, bg="#f0f0f0", width=35)
@@ -918,7 +918,7 @@ class ScadenzeApp:
             "btn_elimina": btn_elimina,
             "btn_calendar": btn_calendar,
             "chk_orario": chk_orario,
-            "var_orario": var_orario,
+            "var_tutto_giorno": var_tutto_giorno,
             "entry_inizio": entry_inizio,
             "entry_fine": entry_fine
         }
@@ -1226,7 +1226,7 @@ class ScadenzeApp:
                 data_iso = data_italiana_a_iso(data_str)
                 datetime.strptime(data_iso, "%Y-%m-%d")
                 
-                con_orario = widgets["var_orario"].get()
+                con_orario = not widgets["var_tutto_giorno"].get()
                 ora_inizio = None
                 ora_fine = None
                 

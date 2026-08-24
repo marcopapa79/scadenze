@@ -144,14 +144,13 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
                 'timeZone': 'Europe/Rome',
             }
         else:
-            # Evento tutto il giorno
+            # Google Calendar usa una data di fine esclusiva per gli eventi giornalieri
+            data_fine = (datetime.strptime(data_scadenza, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
             evento['start'] = {
-                'date': data_scadenza,  # Evento tutto il giorno
-                'timeZone': 'Europe/Rome',
+                'date': data_scadenza,
             }
             evento['end'] = {
-                'date': data_scadenza,
-                'timeZone': 'Europe/Rome',
+                'date': data_fine,
             }
         
         evento_creato = service.events().insert(calendarId=calendario_id, body=evento).execute()
