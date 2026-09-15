@@ -91,6 +91,42 @@
             "con_orario": false,
             "ora_inizio": null,
             "ora_fine": null
+        },
+        "Compleanno Virginia": {
+            "data": "2026-09-19",
+            "con_orario": true,
+            "ora_inizio": "16:30",
+            "ora_fine": "19:00"
+        },
+        "Prova batteria": {
+            "data": "2026-09-17",
+            "con_orario": true,
+            "ora_inizio": "19:15",
+            "ora_fine": "19:45"
+        },
+        "Compleanno Vittoria": {
+            "data": "2026-09-24",
+            "con_orario": true,
+            "ora_inizio": "16:30",
+            "ora_fine": "19:00"
+        },
+        "Festa Ludovica": {
+            "data": "2026-09-26",
+            "con_orario": true,
+            "ora_inizio": "18:00",
+            "ora_fine": "22:00"
+        },
+        "Visita Fazi": {
+            "data": "2026-10-02",
+            "con_orario": true,
+            "ora_inizio": "18:00",
+            "ora_fine": "19:00"
+        },
+        "Compleanno Andr\u00e9s": {
+            "data": "2026-09-22",
+            "con_orario": true,
+            "ora_inizio": "16:30",
+            "ora_fine": "19:00"
         }
     }
 }

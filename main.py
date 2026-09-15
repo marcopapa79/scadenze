@@ -738,11 +738,34 @@ class ScadenzeApp:
         """Riconosce le visite ancora da prenotare in base al nome della voce."""
         voce_lower = voce.lower()
         return "prenotare" in voce_lower or "da prenotare" in voce_lower
+
+    def _is_festa_compleanno(self, voce):
+        """Determina se una voce personale appartiene a feste o compleanni."""
+        voce_lower = voce.lower()
+        return "compleanno" in voce_lower or "festa" in voce_lower
     
     def crea_tab_personali(self, parent):
         """Crea il tab per le scadenze personali, diviso in visite e altre scadenze."""
-        main_frame = tk.Frame(parent, bg="#f0f0f0")
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        scroll_frame = tk.Frame(parent, bg="#f0f0f0")
+        scroll_frame.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(scroll_frame, bg="#f0f0f0", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(scroll_frame, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        main_frame = tk.Frame(canvas, bg="#f0f0f0")
+        canvas_window = canvas.create_window((0, 0), window=main_frame, anchor="nw")
+
+        def aggiorna_area_scroll(event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def adatta_larghezza(event):
+            canvas.itemconfigure(canvas_window, width=event.width)
+
+        main_frame.bind("<Configure>", aggiorna_area_scroll)
+        canvas.bind("<Configure>", adatta_larghezza)
         
         # Titolo e pulsante notifiche
         header_frame = tk.Frame(main_frame, bg="#f0f0f0")
@@ -791,23 +814,34 @@ class ScadenzeApp:
         visite_prenotare_container.pack(fill=tk.BOTH, expand=True)
         
         # SEZIONE SCADENZE
-        scad_frame = tk.LabelFrame(main_frame, text="Scadenze (Casa, ISEE, Documenti, Altro)", 
+        scad_frame = tk.LabelFrame(main_frame, text="Scadenze (Casa, ISEE, IMU, Documenti, Altro)", 
                                     font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
-        scad_frame.pack(fill=tk.BOTH, expand=True)
+        scad_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
         
         scad_container = tk.Frame(scad_frame, bg="#f0f0f0")
         scad_container.pack(fill=tk.BOTH, expand=True)
+
+        # SEZIONE FESTE E COMPLEANNI
+        feste_frame = tk.LabelFrame(main_frame, text="Feste e Compleanni",
+                        font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+        feste_frame.pack(fill=tk.BOTH, expand=True)
+
+        feste_container = tk.Frame(feste_frame, bg="#f0f0f0")
+        feste_container.pack(fill=tk.BOTH, expand=True)
         
         # Separazione visite prenotate, visite da prenotare e altre scadenze
         visite_dict = {}
         visite_da_prenotare_dict = {}
         scadenze_dict = {}
+        feste_dict = {}
         
         for voce, data_obj in self.dati_completi.get("scadenze_personali", {}).items():
             if self._is_visita_personale(voce) and self._is_visita_da_prenotare(voce):
                 visite_da_prenotare_dict[voce] = data_obj
             elif self._is_visita_personale(voce):
                 visite_dict[voce] = data_obj
+            elif self._is_festa_compleanno(voce):
+                feste_dict[voce] = data_obj
             else:
                 scadenze_dict[voce] = data_obj
         
@@ -842,6 +876,16 @@ class ScadenzeApp:
         if row_scad == 0:
             tk.Label(scad_container, text="Nessuna scadenza programmata", 
                     font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
+
+        # Rendering FESTE E COMPLEANNI
+        row_feste = 0
+        for voce, data_obj in sorted(feste_dict.items(), key=lambda x: x[1]['data'] if isinstance(x[1], dict) else x[1]):
+            self._crea_riga_personale(feste_container, voce, data_obj, row_feste)
+            row_feste += 1
+
+        if row_feste == 0:
+            tk.Label(feste_container, text="Nessuna festa o compleanno programmato",
+                    font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
         
         # Pulsanti di azione
         btn_frame = tk.Frame(main_frame, bg="#f0f0f0")
@@ -856,6 +900,9 @@ class ScadenzeApp:
         tk.Button(btn_frame, text="+ Nuova Visita da Prenotare",
              command=lambda: self.aggiungi_scadenza_personale("visita_da_prenotare"),
              bg="#FF9800", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="+ Festa o Compleanno",
+             command=lambda: self.aggiungi_scadenza_personale("festa_compleanno"),
+             bg="#E91E63", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Salva Scadenze Personali", command=self.salva_scadenze_personali,
                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
     
@@ -1122,7 +1169,7 @@ class ScadenzeApp:
         messagebox.showinfo("Successo", f"Scadenza '{nome_scadenza}' eliminata!")
     
     def aggiungi_scadenza_personale(self, tipo="scadenza"):
-        """Aggiunge una nuova scadenza personale, visita prenotata o visita da prenotare."""
+        """Aggiunge una nuova scadenza personale, visita, festa o compleanno."""
         if tipo == "visita_prenotata":
             titolo = "Nuova Visita Prenotata"
             nome_base = simpledialog.askstring(
@@ -1143,6 +1190,16 @@ class ScadenzeApp:
                 return
             nome_finale = f"{nome_base.strip()} da prenotare"
             prompt_data = "Da prenotare entro il (GG-MM-AAAA):"
+        elif tipo == "festa_compleanno":
+            titolo = "Nuova Festa o Compleanno"
+            nome_finale = simpledialog.askstring(
+                titolo,
+                "Nome della festa o del compleanno (es: Compleanno Marco, Festa Ludovica):"
+            )
+            if not nome_finale:
+                return
+            nome_finale = nome_finale.strip()
+            prompt_data = "Data della festa o del compleanno (GG-MM-AAAA):"
         else:
             titolo = "Nuova Scadenza"
             nome_finale = simpledialog.askstring(
