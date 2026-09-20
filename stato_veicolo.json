@@ -86,12 +86,6 @@
             "ora_inizio": null,
             "ora_fine": null
         },
-        "Compleanno Virginia": {
-            "data": "2026-09-19",
-            "con_orario": true,
-            "ora_inizio": "16:30",
-            "ora_fine": "19:00"
-        },
         "Compleanno Vittoria": {
             "data": "2026-09-24",
             "con_orario": true,
