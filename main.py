@@ -25,6 +25,12 @@ SOGLIA_GIORNI_PREAVVISO = 30
 
 DB_FILE = "stato_veicolo.json"
 
+# Giorni della settimana: (etichetta italiana, codice BYDAY per Google Calendar)
+GIORNI_SETTIMANA = [
+    ("Lun", "MO"), ("Mar", "TU"), ("Mer", "WE"), ("Gio", "TH"),
+    ("Ven", "FR"), ("Sab", "SA"), ("Dom", "SU"),
+]
+
 
 def inizializza_db():
     default_data = {
@@ -464,10 +470,12 @@ class ScadenzeApp:
             data_scadenza = data_obj
             orario_inizio = None
             orario_fine = None
+            ricorrenza = None
         else:
             data_scadenza = data_obj.get('data', '')
             orario_inizio = data_obj.get('ora_inizio') if data_obj.get('con_orario') else None
             orario_fine = data_obj.get('ora_fine') if data_obj.get('con_orario') else None
+            ricorrenza = data_obj.get('ricorrenza')
         
         # Determina il tipo e il nome dell'evento
         if "Visita" in nome_scadenza:
@@ -484,7 +492,8 @@ class ScadenzeApp:
             tipo_scadenza="Visita" if tipo_scadenza == "Visita" else "Personale",
             veicolo="",
             ora_inizio=orario_inizio,
-            ora_fine=orario_fine
+            ora_fine=orario_fine,
+            ricorrenza=ricorrenza
         )
         
         if successo:
@@ -906,6 +915,142 @@ class ScadenzeApp:
         tk.Button(btn_frame, text="Salva Scadenze Personali", command=self.salva_scadenze_personali,
                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
     
+    def _descrizione_ricorrenza(self, ricorrenza):
+        """Restituisce una breve descrizione testuale della ricorrenza, o stringa vuota."""
+        if not ricorrenza or not ricorrenza.get("attiva"):
+            return ""
+
+        intervallo = ricorrenza.get("intervallo", 1)
+        freq = ricorrenza.get("freq", "WEEKLY")
+
+        if freq == "WEEKLY":
+            giorni = ricorrenza.get("giorni") or []
+            etichette = [lbl for lbl, cod in GIORNI_SETTIMANA if cod in giorni]
+            giorni_txt = f" ({', '.join(etichette)})" if etichette else ""
+            base = "ogni settimana" if intervallo == 1 else f"ogni {intervallo} settimane"
+            testo = f"🔁 Si ripete {base}{giorni_txt}"
+        else:
+            base = "ogni mese" if intervallo == 1 else f"ogni {intervallo} mesi"
+            testo = f"🔁 Si ripete {base}"
+
+        if ricorrenza.get("fino_al"):
+            testo += f" fino al {data_iso_a_italiana(ricorrenza['fino_al'])}"
+
+        return testo
+
+    def _dialog_ricorrenza(self, nome_scadenza, ricorrenza_attuale, data_riferimento_iso=None):
+        """Apre una finestra modale per impostare la ricorrenza di una scadenza.
+
+        Restituisce un dict {"attiva", "freq", "intervallo", "giorni", "fino_al"}
+        oppure None se l'utente ha annullato.
+        """
+        ricorrenza_attuale = ricorrenza_attuale or {}
+        risultato = {}
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Ricorrenza - {nome_scadenza}")
+        win.geometry("380x360")
+        win.configure(bg="#f0f0f0")
+        win.transient(self.root)
+        win.grab_set()
+
+        var_attiva = tk.BooleanVar(value=ricorrenza_attuale.get("attiva", False))
+        var_freq = tk.StringVar(value=ricorrenza_attuale.get("freq", "WEEKLY"))
+        var_intervallo = tk.StringVar(value=str(ricorrenza_attuale.get("intervallo", 1)))
+
+        giorni_default = ricorrenza_attuale.get("giorni")
+        if not giorni_default and data_riferimento_iso:
+            try:
+                idx = datetime.strptime(data_riferimento_iso, "%Y-%m-%d").weekday()
+                giorni_default = [GIORNI_SETTIMANA[idx][1]]
+            except ValueError:
+                giorni_default = []
+        giorni_default = giorni_default or []
+
+        vars_giorni = {cod: tk.BooleanVar(value=cod in giorni_default) for _, cod in GIORNI_SETTIMANA}
+
+        fino_al_default = data_iso_a_italiana(ricorrenza_attuale.get("fino_al")) if ricorrenza_attuale.get("fino_al") else ""
+
+        tk.Checkbutton(win, text="Si ripete", variable=var_attiva, font=self.normal_font,
+                       bg="#f0f0f0").pack(anchor=tk.W, padx=10, pady=(10, 5))
+
+        freq_frame = tk.Frame(win, bg="#f0f0f0")
+        freq_frame.pack(fill=tk.X, padx=10, pady=5)
+        tk.Label(freq_frame, text="Ripeti ogni:", bg="#f0f0f0", font=self.normal_font).pack(side=tk.LEFT)
+        spin_intervallo = tk.Spinbox(freq_frame, from_=1, to=30, width=4, textvariable=var_intervallo)
+        spin_intervallo.pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(freq_frame, text="Settimana/e", variable=var_freq, value="WEEKLY",
+                       bg="#f0f0f0", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Radiobutton(freq_frame, text="Mese/i", variable=var_freq, value="MONTHLY",
+                       bg="#f0f0f0", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+
+        giorni_frame = tk.LabelFrame(win, text="Giorni della settimana (solo per ricorrenza settimanale)",
+                                     bg="#f0f0f0", font=self.normal_font, padx=5, pady=5)
+        giorni_frame.pack(fill=tk.X, padx=10, pady=10)
+        for i, (etichetta, codice) in enumerate(GIORNI_SETTIMANA):
+            tk.Checkbutton(giorni_frame, text=etichetta, variable=vars_giorni[codice],
+                          bg="#f0f0f0", font=self.normal_font).grid(row=0, column=i, padx=2)
+
+        fino_frame = tk.Frame(win, bg="#f0f0f0")
+        fino_frame.pack(fill=tk.X, padx=10, pady=5)
+        tk.Label(fino_frame, text="Fino al (GG-MM-AAAA, vuoto = senza fine):",
+                bg="#f0f0f0", font=self.normal_font).pack(anchor=tk.W)
+        entry_fino_al = tk.Entry(fino_frame, font=self.normal_font, width=15)
+        entry_fino_al.pack(anchor=tk.W, pady=3)
+        entry_fino_al.insert(0, fino_al_default)
+
+        def conferma():
+            if not var_attiva.get():
+                risultato["attiva"] = False
+                win.destroy()
+                return
+
+            try:
+                intervallo = int(var_intervallo.get())
+                if intervallo < 1:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror("Errore", "L'intervallo deve essere un numero intero positivo", parent=win)
+                return
+
+            freq = var_freq.get()
+            giorni_sel = [cod for cod, var in vars_giorni.items() if var.get()]
+            if freq == "WEEKLY" and not giorni_sel:
+                messagebox.showerror("Errore", "Seleziona almeno un giorno della settimana", parent=win)
+                return
+
+            fino_al_txt = entry_fino_al.get().strip()
+            fino_al_iso = None
+            if fino_al_txt:
+                try:
+                    fino_al_iso = data_italiana_a_iso(fino_al_txt)
+                    datetime.strptime(fino_al_iso, "%Y-%m-%d")
+                except ValueError:
+                    messagebox.showerror("Errore", "Data 'fino al' non valida! Usa GG-MM-AAAA", parent=win)
+                    return
+
+            risultato.update({
+                "attiva": True,
+                "freq": freq,
+                "intervallo": intervallo,
+                "giorni": giorni_sel if freq == "WEEKLY" else [],
+                "fino_al": fino_al_iso,
+            })
+            win.destroy()
+
+        def annulla():
+            win.destroy()
+
+        btn_frame = tk.Frame(win, bg="#f0f0f0")
+        btn_frame.pack(fill=tk.X, padx=10, pady=15)
+        tk.Button(btn_frame, text="OK", command=conferma, bg="#4CAF50", fg="white",
+                 font=self.normal_font, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Annulla", command=annulla, bg="#9E9E9E", fg="white",
+                 font=self.normal_font, width=10).pack(side=tk.LEFT, padx=5)
+
+        win.wait_window()
+        return risultato if risultato else None
+
     def _crea_riga_personale(self, container, voce, data_obj, row):
         """Funzione helper per creare una riga di scadenza/visita"""
         # Gestisci sia il vecchio formato (stringa) che il nuovo (dict)
@@ -957,6 +1102,13 @@ class ScadenzeApp:
                                 command=lambda v=voce: self.esporta_singola_scad_personale(v),
                                 bg="#4285F4", fg="white", width=2)
         btn_calendar.grid(row=row, column=8, padx=2)
+
+        # Pulsante ricorrenza (imposta ripetizione settimanale/mensile)
+        ricorrenza_attiva = bool(data_obj.get("ricorrenza", {}).get("attiva"))
+        btn_ricorrenza = tk.Button(container, text="🔁",
+                                  command=lambda v=voce: self.gestisci_ricorrenza_personale(v),
+                                  bg="#009688" if ricorrenza_attiva else "#B0BEC5", fg="white", width=2)
+        btn_ricorrenza.grid(row=row, column=9, padx=2)
         
         self.scadenze_personali_widgets[voce] = {
             "entry": entry, 
@@ -964,6 +1116,7 @@ class ScadenzeApp:
             "btn_modifica": btn_modifica,
             "btn_elimina": btn_elimina,
             "btn_calendar": btn_calendar,
+            "btn_ricorrenza": btn_ricorrenza,
             "chk_orario": chk_orario,
             "var_tutto_giorno": var_tutto_giorno,
             "entry_inizio": entry_inizio,
@@ -1230,7 +1383,13 @@ class ScadenzeApp:
             "ora_fine": None
         }
         salva_dati(self.dati_completi)
-        
+
+        if messagebox.askyesno("Ricorrenza", f"'{nome_finale}' si ripete nel tempo (es. ogni settimana)?"):
+            ricorrenza = self._dialog_ricorrenza(nome_finale, None, data)
+            if ricorrenza is not None:
+                self.dati_completi["scadenze_personali"][nome_finale]["ricorrenza"] = ricorrenza
+                salva_dati(self.dati_completi)
+
         self.ricarica_interfaccia()
         messagebox.showinfo("Successo", f"Scadenza '{nome_finale}' aggiunta!")
     
@@ -1257,6 +1416,23 @@ class ScadenzeApp:
         self.ricarica_interfaccia()
         messagebox.showinfo("Successo", f"Scadenza rinominata da '{nome_scadenza}' a '{nuovo_nome}'!")
     
+    def gestisci_ricorrenza_personale(self, nome_scadenza):
+        """Apre il dialogo di ricorrenza e salva la nuova configurazione per la scadenza."""
+        voce = self.dati_completi["scadenze_personali"].get(nome_scadenza)
+        if isinstance(voce, str):
+            voce = {'data': voce, 'con_orario': False, 'ora_inizio': None, 'ora_fine': None}
+            self.dati_completi["scadenze_personali"][nome_scadenza] = voce
+
+        ricorrenza_attuale = voce.get("ricorrenza")
+        nuova_ricorrenza = self._dialog_ricorrenza(nome_scadenza, ricorrenza_attuale, voce.get("data"))
+
+        if nuova_ricorrenza is None:
+            return
+
+        voce["ricorrenza"] = nuova_ricorrenza
+        salva_dati(self.dati_completi)
+        self.ricarica_interfaccia()
+
     def elimina_scadenza_personale(self, nome_scadenza):
         """Elimina una scadenza personale"""
         conferma = messagebox.askyesno(
@@ -1304,7 +1480,9 @@ class ScadenzeApp:
                     "data": data_iso,  # Salva in formato ISO
                     "con_orario": con_orario,
                     "ora_inizio": ora_inizio,
-                    "ora_fine": ora_fine
+                    "ora_fine": ora_fine,
+                    "ricorrenza": self.dati_completi["scadenze_personali"].get(voce, {}).get("ricorrenza")
+                    if isinstance(self.dati_completi["scadenze_personali"].get(voce), dict) else None
                 }
             
             salva_dati(self.dati_completi)
@@ -1378,7 +1556,12 @@ class ScadenzeApp:
                 stato += f" - {data_obj['ora_inizio']}"
                 if data_obj.get('ora_fine'):
                     stato += f" a {data_obj['ora_fine']}"
-            
+
+            # Aggiungi indicazione di ricorrenza se presente
+            descrizione_ricorrenza = self._descrizione_ricorrenza(data_obj.get("ricorrenza"))
+            if descrizione_ricorrenza:
+                stato += f"\n{descrizione_ricorrenza}"
+
             widgets["label"].config(text=stato, fg=colore)
 
 

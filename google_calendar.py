@@ -98,7 +98,50 @@ def trova_calendario_per_nome(service, nome_calendario):
     return 'primary'
 
 
-def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", calendario_id='primary', ora_inizio=None, ora_fine=None):
+GIORNI_RRULE = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+
+
+def costruisci_rrule(ricorrenza):
+    """
+    Costruisce la lista 'recurrence' per Google Calendar a partire da una
+    configurazione di ricorrenza salvata nei dati locali.
+
+    Args:
+        ricorrenza: dict con chiavi:
+            - attiva (bool)
+            - freq: 'WEEKLY' o 'MONTHLY'
+            - intervallo: int (ogni quante settimane/mesi)
+            - giorni: lista di codici BYDAY (solo per WEEKLY), es. ['MO', 'WE']
+            - fino_al: data ISO (YYYY-MM-DD) opzionale di fine ricorrenza
+
+    Returns:
+        list con una stringa 'RRULE:...' oppure None se non ricorrente
+    """
+    if not ricorrenza or not ricorrenza.get("attiva"):
+        return None
+
+    freq = ricorrenza.get("freq", "WEEKLY")
+    intervallo = max(1, int(ricorrenza.get("intervallo", 1) or 1))
+
+    parti = [f"FREQ={freq}", f"INTERVAL={intervallo}"]
+
+    if freq == "WEEKLY":
+        giorni = ricorrenza.get("giorni") or []
+        if giorni:
+            parti.append(f"BYDAY={','.join(giorni)}")
+
+    fino_al = ricorrenza.get("fino_al")
+    if fino_al:
+        try:
+            data_fine = datetime.strptime(fino_al, "%Y-%m-%d")
+            parti.append(f"UNTIL={data_fine.strftime('%Y%m%d')}T235959Z")
+        except ValueError:
+            pass
+
+    return [f"RRULE:{';'.join(parti)}"]
+
+
+def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", calendario_id='primary', ora_inizio=None, ora_fine=None, recurrence=None):
     """
     Crea un evento su Google Calendar per una scadenza
     
@@ -110,6 +153,7 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
         calendario_id: ID del calendario (default: 'primary')
         ora_inizio: Ora inizio in formato HH:MM (opzionale)
         ora_fine: Ora fine in formato HH:MM (opzionale)
+        recurrence: lista di stringhe RRULE per eventi ricorrenti (opzionale)
     
     Returns:
         Link all'evento creato
@@ -129,6 +173,9 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
             },
             # Nessun colorId: usa il colore del calendario
         }
+
+        if recurrence:
+            evento['recurrence'] = recurrence
         
         # Se ci sono orari, crea un evento con orario specifico
         if ora_inizio:
@@ -161,7 +208,7 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
         return None
 
 
-def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scadenza", veicolo="", ora_inizio=None, ora_fine=None):
+def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scadenza", veicolo="", ora_inizio=None, ora_fine=None, ricorrenza=None):
     """
     Esporta una singola scadenza su Google Calendar
     
@@ -172,6 +219,7 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
         veicolo: Nome del veicolo (opzionale)
         ora_inizio: Ora inizio in formato HH:MM (opzionale)
         ora_fine: Ora fine in formato HH:MM (opzionale)
+        ricorrenza: dict di configurazione ricorrenza (opzionale, vedi costruisci_rrule)
     
     Returns:
         (bool successo, str messaggio)
@@ -203,10 +251,14 @@ def esporta_singola_scadenza(nome_scadenza, data_scadenza, tipo_scadenza="Scaden
         else:
             titolo = f"⚠️ Scadenza: {nome_scadenza}"
         
-        link = crea_evento_scadenza(service, titolo, data_scadenza, descrizione, cal_id, ora_inizio, ora_fine)
+        recurrence = costruisci_rrule(ricorrenza)
+        link = crea_evento_scadenza(service, titolo, data_scadenza, descrizione, cal_id, ora_inizio, ora_fine, recurrence)
         
         if link:
-            return True, f"✅ '{nome_scadenza}' esportata su Google Calendar!"
+            messaggio = f"✅ '{nome_scadenza}' esportata su Google Calendar!"
+            if recurrence:
+                messaggio += " (evento ricorrente)"
+            return True, messaggio
         else:
             return False, "Errore durante la creazione dell'evento"
             
@@ -290,14 +342,31 @@ def esporta_scadenze_personali(scadenze_personali):
         cal_id = trova_calendario_per_nome(service, 'Famiglia')
         eventi_creati = []
         
-        for nome_scadenza, data in scadenze_personali.items():
+        for nome_scadenza, data_obj in scadenze_personali.items():
+            # Gestisci sia il vecchio formato (stringa) che il nuovo (dict)
+            if isinstance(data_obj, str):
+                data = data_obj
+                ora_inizio = None
+                ora_fine = None
+                ricorrenza = None
+            else:
+                data = data_obj.get("data")
+                con_orario = data_obj.get("con_orario", False)
+                ora_inizio = data_obj.get("ora_inizio") if con_orario else None
+                ora_fine = data_obj.get("ora_fine") if con_orario else None
+                ricorrenza = data_obj.get("ricorrenza")
+
             descrizione = f"Tipo: Scadenza personale\nCategoria: {nome_scadenza}"
+            recurrence = costruisci_rrule(ricorrenza)
             link = crea_evento_scadenza(
                 service,
                 nome_scadenza,
                 data,
                 descrizione,
-                cal_id
+                cal_id,
+                ora_inizio,
+                ora_fine,
+                recurrence
             )
             if link:
                 eventi_creati.append(nome_scadenza)
