@@ -1104,7 +1104,7 @@ class ScadenzeApp:
         btn_calendar.grid(row=row, column=8, padx=2)
 
         # Pulsante ricorrenza (imposta ripetizione settimanale/mensile)
-        ricorrenza_attiva = bool(data_obj.get("ricorrenza", {}).get("attiva"))
+        ricorrenza_attiva = bool((data_obj.get("ricorrenza") or {}).get("attiva"))
         btn_ricorrenza = tk.Button(container, text="🔁",
                                   command=lambda v=voce: self.gestisci_ricorrenza_personale(v),
                                   bg="#009688" if ricorrenza_attiva else "#B0BEC5", fg="white", width=2)

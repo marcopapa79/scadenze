@@ -48,97 +48,130 @@
             "data": "2027-06-16",
             "con_orario": false,
             "ora_inizio": null,
-            "ora_fine": null
+            "ora_fine": null,
+            "ricorrenza": null
         },
         "Pagamento IMU seconda rata": {
             "data": "2026-12-16",
             "con_orario": false,
             "ora_inizio": null,
-            "ora_fine": null
+            "ora_fine": null,
+            "ricorrenza": null
         },
         "Visita Vadal\u00e0 Andr\u00e9s": {
             "data": "2027-02-17",
             "con_orario": true,
             "ora_inizio": "15:45",
-            "ora_fine": "16:45"
+            "ora_fine": "16:45",
+            "ricorrenza": null
         },
         "Visita Trionfetti Aurora": {
             "data": "2026-09-24",
             "con_orario": true,
             "ora_inizio": "13:30",
-            "ora_fine": "14:00"
+            "ora_fine": "14:00",
+            "ricorrenza": null
         },
         "Post Ado servizi": {
             "data": "2026-09-23",
             "con_orario": true,
             "ora_inizio": "11:00",
-            "ora_fine": "12:30"
+            "ora_fine": "12:30",
+            "ricorrenza": null
         },
         "Visita Medico Sportiva Aurora da prenotare": {
             "data": "2026-12-16",
             "con_orario": false,
             "ora_inizio": null,
-            "ora_fine": null
+            "ora_fine": null,
+            "ricorrenza": null
         },
         "Visita Medico Sportiva Andres da prenotare": {
             "data": "2027-06-08",
             "con_orario": false,
             "ora_inizio": null,
-            "ora_fine": null
+            "ora_fine": null,
+            "ricorrenza": null
         },
         "Compleanno Vittoria": {
             "data": "2026-09-24",
             "con_orario": true,
             "ora_inizio": "16:30",
-            "ora_fine": "19:00"
+            "ora_fine": "19:00",
+            "ricorrenza": null
         },
         "Festa Ludovica": {
             "data": "2026-09-26",
             "con_orario": true,
             "ora_inizio": "18:00",
-            "ora_fine": "22:00"
+            "ora_fine": "22:00",
+            "ricorrenza": null
         },
         "Visita Fazi": {
             "data": "2026-10-02",
             "con_orario": true,
             "ora_inizio": "18:00",
-            "ora_fine": "19:00"
+            "ora_fine": "19:00",
+            "ricorrenza": null
         },
         "Compleanno Andr\u00e9s": {
             "data": "2026-09-22",
             "con_orario": true,
             "ora_inizio": "16:30",
-            "ora_fine": "19:00"
-        },
-        "Prova Pallavolo Campomagiore": {
-            "data": "2026-09-21",
-            "con_orario": true,
-            "ora_inizio": "18:00",
-            "ora_fine": "20:00"
+            "ora_fine": "19:00",
+            "ricorrenza": null
         },
         "Luzi Claudia per Andres": {
             "data": "2026-09-28",
             "con_orario": true,
             "ora_inizio": "15:30",
-            "ora_fine": "16:00"
+            "ora_fine": "16:00",
+            "ricorrenza": null
         },
         "Catechismo": {
             "data": "2026-10-16",
             "con_orario": true,
             "ora_inizio": "17:30",
-            "ora_fine": "19:00"
+            "ora_fine": "19:00",
+            "ricorrenza": {
+                "attiva": true,
+                "freq": "WEEKLY",
+                "intervallo": 1,
+                "giorni": [
+                    "FR"
+                ],
+                "fino_al": null
+            }
         },
         "END": {
             "data": "2026-10-17",
             "con_orario": true,
             "ora_inizio": "19:00",
-            "ora_fine": "23:00"
+            "ora_fine": "23:00",
+            "ricorrenza": null
         },
         "Visita Controllo Ortottico Andr\u00e9s (Pacifici)": {
             "data": "2026-10-05",
             "con_orario": true,
             "ora_inizio": "15:00",
-            "ora_fine": "15:30"
+            "ora_fine": "15:30",
+            "ricorrenza": null
+        },
+        "Basket Andr\u00e9s": {
+            "data": "2026-09-22",
+            "con_orario": true,
+            "ora_inizio": "16:30",
+            "ora_fine": "17:45",
+            "ricorrenza": {
+                "attiva": true,
+                "freq": "WEEKLY",
+                "intervallo": 1,
+                "giorni": [
+                    "TU",
+                    "FR"
+                ],
+                "fino_al": "2027-06-29"
+            }
         }
     }
 }
