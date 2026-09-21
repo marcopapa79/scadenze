@@ -121,6 +121,24 @@
             "con_orario": true,
             "ora_inizio": "15:30",
             "ora_fine": "16:00"
+        },
+        "Catechismo": {
+            "data": "2026-10-16",
+            "con_orario": true,
+            "ora_inizio": "17:30",
+            "ora_fine": "19:00"
+        },
+        "END": {
+            "data": "2026-10-17",
+            "con_orario": true,
+            "ora_inizio": "19:00",
+            "ora_fine": "23:00"
+        },
+        "Visita Controllo Ortottico Andr\u00e9s (Pacifici)": {
+            "data": "2026-10-05",
+            "con_orario": true,
+            "ora_inizio": "15:00",
+            "ora_fine": "15:30"
         }
     }
 }
