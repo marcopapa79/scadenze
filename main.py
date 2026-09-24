@@ -4,6 +4,7 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from tkinter import font as tkfont
+from ricorrenze import prossima_occorrenza
 
 try:
     import notifiche
@@ -1538,7 +1539,13 @@ class ScadenzeApp:
                 data_obj = {'data': data_obj, 'con_orario': False, 'ora_inizio': None, 'ora_fine': None}
             
             data_str = data_obj.get('data', '')
-            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d").date()
+            data_iniziale = datetime.strptime(data_str, "%Y-%m-%d").date()
+            data_scadenza = prossima_occorrenza(
+                data_iniziale, data_obj.get("ricorrenza"), oggi
+            )
+            if data_scadenza is None:
+                widgets["label"].config(text="Ricorrenza terminata", fg="gray")
+                continue
             giorni_rimasti = (data_scadenza - oggi).days
             
             if giorni_rimasti < 0:

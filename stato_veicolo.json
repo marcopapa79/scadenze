@@ -86,18 +86,11 @@
             "ora_fine": null,
             "ricorrenza": null
         },
-        "Compleanno Vittoria": {
-            "data": "2026-09-24",
-            "con_orario": true,
-            "ora_inizio": "16:30",
-            "ora_fine": "19:00",
-            "ricorrenza": null
-        },
         "Festa Ludovica": {
-            "data": "2026-09-26",
+            "data": "2026-09-27",
             "con_orario": true,
-            "ora_inizio": "18:00",
-            "ora_fine": "22:00",
+            "ora_inizio": "12:30",
+            "ora_fine": "16:00",
             "ricorrenza": null
         },
         "Visita Fazi": {

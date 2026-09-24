@@ -3,6 +3,7 @@ Sistema di notifiche desktop per le scadenze veicoli
 """
 from plyer import notification
 from datetime import datetime
+from ricorrenze import prossima_occorrenza
 
 SOGLIA_KM_PREAVVISO = 3500
 SOGLIA_GIORNI_PREAVVISO = 30
@@ -22,7 +23,12 @@ def controlla_e_notifica(dati_veicolo):
     oggi = datetime.now().date()
     for voce, data_str in dati_veicolo.get("scadenze_fisse", {}).items():
         try:
-            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d").date()
+            data_iniziale = datetime.strptime(data_str, "%Y-%m-%d").date()
+            data_scadenza = prossima_occorrenza(
+                data_iniziale, data_obj.get("ricorrenza"), oggi
+            )
+            if data_scadenza is None:
+                continue
             giorni_rimasti = (data_scadenza - oggi).days
             
             if giorni_rimasti < 0:
@@ -126,10 +132,15 @@ def controlla_scadenze_personali(scadenze_personali):
             # Gestisci sia il vecchio formato (stringa) che il nuovo (dict)
             if isinstance(data_obj, str):
                 data_str = data_obj
+                ricorrenza = None
             else:
                 data_str = data_obj.get('data', '')
+                ricorrenza = data_obj.get("ricorrenza")
             
-            data_scadenza = datetime.strptime(data_str, "%Y-%m-%d").date()
+            data_iniziale = datetime.strptime(data_str, "%Y-%m-%d").date()
+            data_scadenza = prossima_occorrenza(data_iniziale, ricorrenza, oggi)
+            if data_scadenza is None:
+                continue
             giorni_rimasti = (data_scadenza - oggi).days
             
             if giorni_rimasti < 0:
