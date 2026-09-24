@@ -72,13 +72,6 @@
             "ora_fine": "14:00",
             "ricorrenza": null
         },
-        "Post Ado servizi": {
-            "data": "2026-09-23",
-            "con_orario": true,
-            "ora_inizio": "11:00",
-            "ora_fine": "12:30",
-            "ricorrenza": null
-        },
         "Visita Medico Sportiva Aurora da prenotare": {
             "data": "2026-12-16",
             "con_orario": false,
@@ -111,13 +104,6 @@
             "data": "2026-10-02",
             "con_orario": true,
             "ora_inizio": "18:00",
-            "ora_fine": "19:00",
-            "ricorrenza": null
-        },
-        "Compleanno Andr\u00e9s": {
-            "data": "2026-09-22",
-            "con_orario": true,
-            "ora_inizio": "16:30",
             "ora_fine": "19:00",
             "ricorrenza": null
         },
@@ -172,6 +158,20 @@
                 ],
                 "fino_al": "2027-06-29"
             }
+        },
+        "Post Ado servizi": {
+            "data": "2026-10-14",
+            "con_orario": true,
+            "ora_inizio": "09:15",
+            "ora_fine": "10:45",
+            "ricorrenza": null
+        },
+        "Trionfetti Aurora": {
+            "data": "2026-10-22",
+            "con_orario": true,
+            "ora_inizio": "12:15",
+            "ora_fine": "12:45",
+            "ricorrenza": null
         }
     }
 }
