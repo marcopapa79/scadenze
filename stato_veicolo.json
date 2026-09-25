@@ -65,13 +65,6 @@
             "ora_fine": "16:45",
             "ricorrenza": null
         },
-        "Visita Trionfetti Aurora": {
-            "data": "2026-09-24",
-            "con_orario": true,
-            "ora_inizio": "13:30",
-            "ora_fine": "14:00",
-            "ricorrenza": null
-        },
         "Visita Medico Sportiva Aurora da prenotare": {
             "data": "2026-12-16",
             "con_orario": false,
