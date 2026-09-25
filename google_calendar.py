@@ -425,6 +425,9 @@ def _normalizza_titolo_per_import(titolo):
             nome = nome[len(prefisso):].strip()
             break
 
+    # Gestisce anche emoji sostituite da caratteri non alfabetici dal sistema.
+    nome = re.sub(r"^[^\w]*Visita:\s*", "", nome, flags=re.IGNORECASE)
+
     # Riduce spazi multipli
     nome = re.sub(r"\s+", " ", nome).strip()
     return nome or "Senza titolo"
@@ -493,6 +496,10 @@ def leggi_eventi_calendar(data_inizio, giorni=15, nome_calendario='Famiglia', ma
         for evento in response.get('items', []):
             titolo_raw = evento.get('summary', 'Senza titolo')
             nome_import = _normalizza_titolo_per_import(titolo_raw)
+            descrizione = evento.get('description', '') or ''
+            tipo_import = 'Visita' if re.search(
+                r'^Tipo:\s*Visita\s*$', descrizione, re.MULTILINE | re.IGNORECASE
+            ) else None
 
             data_iso, ora_inizio = _parse_google_datetime(evento.get('start', {}))
             _, ora_fine = _parse_google_datetime(evento.get('end', {}))
@@ -508,6 +515,7 @@ def leggi_eventi_calendar(data_inizio, giorni=15, nome_calendario='Famiglia', ma
                 "id": evento.get("id"),
                 "titolo": titolo_raw,
                 "nome_import": nome_import,
+                "tipo_import": tipo_import,
                 "data": data_iso,
                 "con_orario": con_orario,
                 "ora_inizio": ora_inizio,

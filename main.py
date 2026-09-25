@@ -405,11 +405,13 @@ class ScadenzeApp:
                 continue
 
             nome_finale = self._nome_personale_univoco(nome_import)
+            tipo_import = evento.get("tipo_import")
             self.dati_completi["scadenze_personali"][nome_finale] = {
                 "data": data_evento,
                 "con_orario": con_orario,
                 "ora_inizio": ora_inizio,
                 "ora_fine": ora_fine,
+                "categoria": "visita_prenotata" if tipo_import == "Visita" else "scadenza",
             }
             esistenti.add(chiave)
             importati += 1
@@ -739,8 +741,10 @@ class ScadenzeApp:
             widgets["entry_inizio"].config(state=stato)
             widgets["entry_fine"].config(state=stato)
 
-    def _is_visita_personale(self, voce):
+    def _is_visita_personale(self, voce, data_obj=None):
         """Determina se una voce personale appartiene alle visite mediche."""
+        if isinstance(data_obj, dict) and data_obj.get("categoria") == "visita_prenotata":
+            return True
         voce_lower = voce.lower()
         return "visita" in voce_lower or "medic" in voce_lower
 
@@ -848,7 +852,7 @@ class ScadenzeApp:
         for voce, data_obj in self.dati_completi.get("scadenze_personali", {}).items():
             if self._is_visita_personale(voce) and self._is_visita_da_prenotare(voce):
                 visite_da_prenotare_dict[voce] = data_obj
-            elif self._is_visita_personale(voce):
+            elif self._is_visita_personale(voce, data_obj):
                 visite_dict[voce] = data_obj
             elif self._is_festa_compleanno(voce):
                 feste_dict[voce] = data_obj
