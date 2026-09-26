@@ -158,6 +158,13 @@
             "ora_inizio": "12:15",
             "ora_fine": "12:45",
             "ricorrenza": null
+        },
+        "Riunione scuola Danilo": {
+            "data": "2026-09-29",
+            "con_orario": true,
+            "ora_inizio": "14:00",
+            "ora_fine": "14:30",
+            "ricorrenza": null
         }
     }
 }
