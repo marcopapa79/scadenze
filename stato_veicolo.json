@@ -79,13 +79,6 @@
             "ora_fine": null,
             "ricorrenza": null
         },
-        "Festa Ludovica": {
-            "data": "2026-09-27",
-            "con_orario": true,
-            "ora_inizio": "12:30",
-            "ora_fine": "16:00",
-            "ricorrenza": null
-        },
         "Visita Fazi": {
             "data": "2026-10-02",
             "con_orario": true,
@@ -98,7 +91,15 @@
             "con_orario": true,
             "ora_inizio": "15:30",
             "ora_fine": "16:00",
-            "ricorrenza": null
+            "ricorrenza": {
+                "attiva": true,
+                "freq": "WEEKLY",
+                "intervallo": 1,
+                "giorni": [
+                    "MO"
+                ],
+                "fino_al": "2027-06-14"
+            }
         },
         "Catechismo": {
             "data": "2026-10-16",
@@ -132,15 +133,15 @@
         "Basket Andr\u00e9s": {
             "data": "2026-09-22",
             "con_orario": true,
-            "ora_inizio": "16:30",
-            "ora_fine": "17:45",
+            "ora_inizio": "17:30",
+            "ora_fine": "18:30",
             "ricorrenza": {
                 "attiva": true,
                 "freq": "WEEKLY",
                 "intervallo": 1,
                 "giorni": [
-                    "TU",
-                    "FR"
+                    "MO",
+                    "TH"
                 ],
                 "fino_al": "2027-06-29"
             }
@@ -159,11 +160,11 @@
             "ora_fine": "12:45",
             "ricorrenza": null
         },
-        "Riunione scuola Danilo": {
-            "data": "2026-09-29",
+        "Compleanno Linda": {
+            "data": "2026-10-08",
             "con_orario": true,
-            "ora_inizio": "14:00",
-            "ora_fine": "14:30",
+            "ora_inizio": "16:30",
+            "ora_fine": "18:30",
             "ricorrenza": null
         }
     }
