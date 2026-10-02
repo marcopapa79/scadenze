@@ -166,6 +166,23 @@
             "ora_inizio": "16:30",
             "ora_fine": "18:30",
             "ricorrenza": null
+        },
+        "Pallavolo Aurora": {
+            "data": "2026-10-05",
+            "con_orario": true,
+            "ora_inizio": "16:30",
+            "ora_fine": "18:30",
+            "ricorrenza": {
+                "attiva": true,
+                "freq": "WEEKLY",
+                "intervallo": 1,
+                "giorni": [
+                    "MO",
+                    "WE",
+                    "TH"
+                ],
+                "fino_al": "2027-05-27"
+            }
         }
     }
 }
