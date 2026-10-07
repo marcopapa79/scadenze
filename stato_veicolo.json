@@ -80,10 +80,10 @@
             "ricorrenza": null
         },
         "Visita Fazi": {
-            "data": "2026-10-02",
+            "data": "2026-10-16",
             "con_orario": true,
-            "ora_inizio": "18:00",
-            "ora_fine": "19:00",
+            "ora_inizio": "16:00",
+            "ora_fine": "17:00",
             "ricorrenza": null
         },
         "Luzi Claudia per Andres": {
@@ -121,13 +121,6 @@
             "con_orario": true,
             "ora_inizio": "19:00",
             "ora_fine": "23:00",
-            "ricorrenza": null
-        },
-        "Visita Controllo Ortottico Andr\u00e9s (Pacifici)": {
-            "data": "2026-10-05",
-            "con_orario": true,
-            "ora_inizio": "14:30",
-            "ora_fine": "15:00",
             "ricorrenza": null
         },
         "Basket Andr\u00e9s": {
@@ -178,11 +171,39 @@
                 "intervallo": 1,
                 "giorni": [
                     "MO",
-                    "WE",
                     "TH"
                 ],
                 "fino_al": "2027-05-27"
             }
+        },
+        "Pallavolo Aurora (2)": {
+            "data": "2026-10-06",
+            "con_orario": true,
+            "ora_inizio": "17:00",
+            "ora_fine": "18:00",
+            "ricorrenza": {
+                "attiva": true,
+                "freq": "WEEKLY",
+                "intervallo": 1,
+                "giorni": [
+                    "WE"
+                ],
+                "fino_al": "2027-05-26"
+            }
+        },
+        "Visita ortottica Andr\u00e9s da prenotare": {
+            "data": "2027-04-15",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null,
+            "ricorrenza": null
+        },
+        "Visita Analisi del sangue completa": {
+            "data": "2026-10-10",
+            "con_orario": true,
+            "ora_inizio": "08:00",
+            "ora_fine": "08:30",
+            "ricorrenza": null
         }
     }
 }
