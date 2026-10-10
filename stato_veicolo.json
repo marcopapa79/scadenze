@@ -140,9 +140,9 @@
             }
         },
         "Post Ado servizi": {
-            "data": "2026-10-14",
+            "data": "2026-10-23",
             "con_orario": true,
-            "ora_inizio": "09:15",
+            "ora_inizio": "09:30",
             "ora_fine": "10:45",
             "ricorrenza": null
         },
@@ -151,13 +151,6 @@
             "con_orario": true,
             "ora_inizio": "12:15",
             "ora_fine": "12:45",
-            "ricorrenza": null
-        },
-        "Compleanno Linda": {
-            "data": "2026-10-08",
-            "con_orario": true,
-            "ora_inizio": "16:30",
-            "ora_fine": "18:30",
             "ricorrenza": null
         },
         "Pallavolo Aurora": {
