@@ -190,13 +190,6 @@
             "ora_inizio": null,
             "ora_fine": null,
             "ricorrenza": null
-        },
-        "Visita Analisi del sangue completa": {
-            "data": "2026-10-10",
-            "con_orario": true,
-            "ora_inizio": "08:00",
-            "ora_fine": "08:30",
-            "ricorrenza": null
         }
     }
 }
