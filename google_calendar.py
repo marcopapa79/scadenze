@@ -24,6 +24,10 @@ SCOPES = ['https://www.googleapis.com/auth/calendar']
 TOKEN_FILE = 'token.pickle'
 CREDENTIALS_FILE = 'credentials.json'
 
+# Promemoria popup sugli eventi esportati (minuti prima dell'evento)
+PROMEMORIA_RICORRENTI = [10]          # eventi che si ripetono: 10 minuti prima
+PROMEMORIA_SINGOLI = [24 * 60, 10]    # tutti gli altri: 1 giorno prima e 10 minuti prima
+
 
 def _nome_veicolo_solo_nome(nome_veicolo):
     """Restituisce solo il nome veicolo, rimuovendo un'eventuale targa tra parentesi."""
@@ -159,17 +163,21 @@ def crea_evento_scadenza(service, nome_scadenza, data_scadenza, descrizione="", 
         Link all'evento creato
     """
     try:
+        # Promemoria:
+        # - eventi ricorrenti: solo 10 minuti prima
+        # - tutti gli altri: 1 giorno prima e 10 minuti prima
+        if recurrence:
+            promemoria = PROMEMORIA_RICORRENTI
+        else:
+            promemoria = PROMEMORIA_SINGOLI
+
         # Converti la data in formato Google Calendar
         evento = {
             'summary': nome_scadenza,
             'description': descrizione,
             'reminders': {
                 'useDefault': False,
-                'overrides': [
-                    {'method': 'popup', 'minutes': 10},           # 10 minuti prima
-                    {'method': 'popup', 'minutes': 24 * 60},      # 1 giorno prima
-                    {'method': 'popup', 'minutes': 24 * 60 * 3},  # 3 giorni prima
-                ],
+                'overrides': [{'method': 'popup', 'minutes': m} for m in promemoria],
             },
             # Nessun colorId: usa il colore del calendario
         }

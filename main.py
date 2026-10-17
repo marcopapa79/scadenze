@@ -26,6 +26,10 @@ SOGLIA_GIORNI_PREAVVISO = 30
 
 DB_FILE = "stato_veicolo.json"
 
+# Velocità di scorrimento della scheda Scadenze Personali
+SCROLL_PIXEL_PER_UNITA = 20   # pixel per unità di scroll
+SCROLL_UNITA_PER_SCATTO = 3   # unità per ogni scatto della rotellina (3 x 20 = 60 px)
+
 # Giorni della settimana: (etichetta italiana, codice BYDAY per Google Calendar)
 GIORNI_SETTIMANA = [
     ("Lun", "MO"), ("Mar", "TU"), ("Mer", "WE"), ("Gio", "TH"),
@@ -758,12 +762,34 @@ class ScadenzeApp:
         voce_lower = voce.lower()
         return "compleanno" in voce_lower or "festa" in voce_lower
     
+    def _scroll_rotellina(self, event):
+        """Scorre la scheda Scadenze Personali con la rotellina del mouse."""
+        try:
+            canvas = getattr(self, "canvas_personali", None)
+            if canvas is None or not canvas.winfo_exists():
+                return
+            # Ignora la rotellina nelle finestre di dialogo (es. Ricorrenza)
+            if event.widget.winfo_toplevel() is not self.root:
+                return
+            # Scorre solo se è aperta la scheda Scadenze Personali
+            if self.notebook.index(self.notebook.select()) != 1:
+                return
+            # Su Windows ogni "scatto" della rotellina vale delta = 120
+            passi = -event.delta / 120 * SCROLL_UNITA_PER_SCATTO
+            passi = int(passi) if abs(passi) >= 1 else (1 if passi > 0 else -1)
+            canvas.yview_scroll(passi, "units")
+        except (tk.TclError, AttributeError):
+            pass
+
     def crea_tab_personali(self, parent):
         """Crea il tab per le scadenze personali, diviso in visite e altre scadenze."""
         scroll_frame = tk.Frame(parent, bg="#f0f0f0")
         scroll_frame.pack(fill=tk.BOTH, expand=True)
 
-        canvas = tk.Canvas(scroll_frame, bg="#f0f0f0", highlightthickness=0)
+        # yscrollincrement = pixel per "unità" di scroll (frecce della barra e rotellina)
+        canvas = tk.Canvas(scroll_frame, bg="#f0f0f0", highlightthickness=0,
+                           yscrollincrement=SCROLL_PIXEL_PER_UNITA)
+        self.canvas_personali = canvas
         scrollbar = ttk.Scrollbar(scroll_frame, orient=tk.VERTICAL, command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -780,7 +806,10 @@ class ScadenzeApp:
 
         main_frame.bind("<Configure>", aggiorna_area_scroll)
         canvas.bind("<Configure>", adatta_larghezza)
-        
+
+        # Scroll con la rotellina del mouse ovunque nella finestra principale
+        self.root.bind_all("<MouseWheel>", self._scroll_rotellina)
+
         # Titolo e pulsante notifiche
         header_frame = tk.Frame(main_frame, bg="#f0f0f0")
         header_frame.pack(fill=tk.X, pady=(0, 10))

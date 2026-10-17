@@ -3,7 +3,7 @@
         "Corolla (GD028MR)": {
             "nome_veicolo": "Corolla",
             "targa": "GD028MR",
-            "km_attuali": 90066,
+            "km_attuali": 96066,
             "scadenze_fisse": {
                 "Bollo": "2027-08-31",
                 "Assicurazione": "2026-11-27",
@@ -28,7 +28,7 @@
         "YARIS 1.0 business (GN183LR)": {
             "nome_veicolo": "YARIS 1.0 business",
             "targa": "GN183LR",
-            "km_attuali": 60940,
+            "km_attuali": 64940,
             "scadenze_fisse": {
                 "Revisione": "2027-03-30",
                 "Tagliando": "2027-07-01",
@@ -42,7 +42,7 @@
             }
         }
     },
-    "veicolo_selezionato": "Corolla (GD028MR)",
+    "veicolo_selezionato": "YARIS 1.0 business (GN183LR)",
     "scadenze_personali": {
         "Pagamento IMU prima rata": {
             "data": "2027-06-16",
@@ -80,10 +80,10 @@
             "ricorrenza": null
         },
         "Visita Fazi": {
-            "data": "2026-10-16",
+            "data": "2026-10-30",
             "con_orario": true,
-            "ora_inizio": "16:00",
-            "ora_fine": "17:00",
+            "ora_inizio": "17:00",
+            "ora_fine": "18:00",
             "ricorrenza": null
         },
         "Luzi Claudia per Andres": {

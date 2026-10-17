@@ -39,8 +39,8 @@ Il sistema invia notifiche desktop automatiche quando:
 Esporta tutte le tue scadenze su Google Calendar con un click!
 
 **Caratteristiche:**
-- Eventi colorati in rosso per alta visibilità
-- Promemoria automatici (7, 3 e 1 giorno prima)
+- Eventi nel calendario "Famiglia", con il colore del calendario
+- Promemoria automatici: **1 giorno prima e 10 minuti prima**; per gli eventi che si ripetono solo **10 minuti prima**
 - Scadenze chilometriche con data stimata
 - Esportazione separata per veicoli e scadenze personali
 
