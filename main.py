@@ -104,7 +104,10 @@ class ScadenzeApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Gestione Scadenze - Veicoli e Personali")
-        self.root.geometry("1300x800")
+        self.root.geometry("1300x800")  # dimensione quando si "ripristina" la finestra
+        # Apre la finestra ingrandita (come il pulsante quadrato di Windows).
+        # Va fatto dopo che la finestra è comparsa, altrimenti Windows lo ignora.
+        self.root.after(50, self._ingrandisci_finestra)
         self.root.configure(bg="#f0f0f0")
         
         self.title_font = tkfont.Font(family="Helvetica", size=14, weight="bold")
@@ -126,6 +129,16 @@ class ScadenzeApp:
         self.crea_interfaccia()
         self.aggiorna_visualizzazione()
     
+    def _ingrandisci_finestra(self):
+        """Porta la finestra a schermo intero (ingrandita), mantenendo la barra di Windows."""
+        try:
+            self.root.state("zoomed")          # Windows
+        except tk.TclError:
+            try:
+                self.root.attributes("-zoomed", True)  # Linux
+            except tk.TclError:
+                pass  # se non supportato resta 1300x800
+
     def migra_vecchio_formato(self):
         """Converte il vecchio formato dati al nuovo formato multi-veicolo"""
         nome = self.dati_completi.get("nome_veicolo", "Veicolo")
