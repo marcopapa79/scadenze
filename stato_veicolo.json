@@ -117,7 +117,7 @@
             }
         },
         "END": {
-            "data": "2026-10-17",
+            "data": "2026-11-21",
             "con_orario": true,
             "ora_inizio": "19:00",
             "ora_fine": "23:00",
@@ -189,6 +189,13 @@
             "con_orario": false,
             "ora_inizio": null,
             "ora_fine": null,
+            "ricorrenza": null
+        },
+        "GLO": {
+            "data": "2026-10-22",
+            "con_orario": true,
+            "ora_inizio": "15:30",
+            "ora_fine": "16:15",
             "ricorrenza": null
         }
     }
