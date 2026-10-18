@@ -239,6 +239,7 @@ Si cambiano nelle costanti `PROMEMORIA_RICORRENTI` e `PROMEMORIA_SINGOLI` in cim
 | Soglie di preavviso | `SOGLIA_*` in `main.py` **e** in `notifiche.py` |
 | Nome del calendario Google | stringa `'Famiglia'` in `google_calendar.py` (3 punti) e `main.py` (import) |
 | Promemoria degli eventi | `PROMEMORIA_RICORRENTI` / `PROMEMORIA_SINGOLI` in `google_calendar.py` |
+| Velocità scroll (rotellina) scheda Personali | `SCROLL_PIXEL_PER_UNITA` / `SCROLL_UNITA_PER_SCATTO` in `main.py` |
 | Stima km/giorno | `km_medi_al_giorno = 50` in `esporta_scadenze_veicolo()` |
 | Parole chiave per le sezioni | `_is_visita_personale`, `_is_visita_da_prenotare`, `_is_festa_compleanno` in `main.py` |
 | Dati iniziali di esempio | `inizializza_db()` in `main.py` |

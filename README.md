@@ -96,6 +96,7 @@ python main.py
 - **✕** (pulsante rosso): Elimina la scadenza specifica
 - **🔔 Controlla Scadenze**: Verifica tutte le scadenze (veicoli + personali)
 - **📅 Esporta su Calendar**: Esporta scadenze personali su Google Calendar
+- **📋 Copia settimana**: Copia negli appunti gli impegni da oggi ai prossimi 7 giorni (scadenze personali, ripetizioni settimanali e scadenze a data dei veicoli), già formattati per WhatsApp: basta incollare con Ctrl+V. Si apre anche un'anteprima modificabile con il pulsante "Copia di nuovo"
 
 ### Test Notifiche
 

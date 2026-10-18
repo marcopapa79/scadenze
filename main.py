@@ -1,10 +1,10 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from tkinter import font as tkfont
-from ricorrenze import prossima_occorrenza
+from ricorrenze import prossima_occorrenza, occorrenze_nel_periodo
 
 try:
     import notifiche
@@ -29,6 +29,10 @@ DB_FILE = "stato_veicolo.json"
 # Velocità di scorrimento della scheda Scadenze Personali
 SCROLL_PIXEL_PER_UNITA = 20   # pixel per unità di scroll
 SCROLL_UNITA_PER_SCATTO = 3   # unità per ogni scatto della rotellina (3 x 20 = 60 px)
+
+# Riepilogo da copiare (pulsante "Copia settimana"): quanti giorni a partire da oggi
+GIORNI_RIEPILOGO = 7
+NOMI_GIORNI = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
 
 # Giorni della settimana: (etichetta italiana, codice BYDAY per Google Calendar)
 GIORNI_SETTIMANA = [
@@ -775,6 +779,105 @@ class ScadenzeApp:
         voce_lower = voce.lower()
         return "compleanno" in voce_lower or "festa" in voce_lower
     
+    def _impegni_nel_periodo(self, inizio, fine):
+        """Raccoglie tutti gli impegni tra inizio e fine (inclusi).
+
+        Comprende le scadenze personali (con tutte le ripetizioni delle ricorrenti)
+        e le scadenze a data dei veicoli. Restituisce {data: [(ora_ordinamento, riga), ...]}.
+        """
+        impegni = {}
+
+        for nome, data_obj in self.dati_completi.get("scadenze_personali", {}).items():
+            if isinstance(data_obj, str):
+                data_obj = {"data": data_obj}
+            try:
+                data_iniziale = datetime.strptime(data_obj.get("data", ""), "%Y-%m-%d").date()
+            except ValueError:
+                continue
+
+            ora_inizio = data_obj.get("ora_inizio") if data_obj.get("con_orario") else None
+            ora_fine = data_obj.get("ora_fine") if data_obj.get("con_orario") else None
+            if ora_inizio and ora_fine:
+                riga = f"{ora_inizio}-{ora_fine} {nome}"
+            elif ora_inizio:
+                riga = f"{ora_inizio} {nome}"
+            else:
+                riga = nome
+
+            for giorno in occorrenze_nel_periodo(data_iniziale, data_obj.get("ricorrenza"), inizio, fine):
+                # Le voci senza orario vanno in cima alla giornata
+                impegni.setdefault(giorno, []).append((ora_inizio or "00:00", riga))
+
+        for dati_veicolo in self.dati_completi.get("veicoli", {}).values():
+            nome_veicolo = dati_veicolo.get("nome_veicolo", "Veicolo")
+            for voce, data_str in dati_veicolo.get("scadenze_fisse", {}).items():
+                try:
+                    giorno = datetime.strptime(data_str, "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+                if inizio <= giorno <= fine:
+                    impegni.setdefault(giorno, []).append(("00:00", f"{voce} ({nome_veicolo})"))
+
+        return impegni
+
+    def _testo_settimana(self, giorni=GIORNI_RIEPILOGO):
+        """Crea il testo del riepilogo, già formattato per WhatsApp (*grassetto*)."""
+        inizio = datetime.now().date()
+        fine = inizio + timedelta(days=giorni - 1)
+        impegni = self._impegni_nel_periodo(inizio, fine)
+
+        righe = [f"*Impegni dal {inizio.strftime('%d/%m')} al {fine.strftime('%d/%m')}*"]
+        if not impegni:
+            righe += ["", "Nessun impegno in programma."]
+            return "\n".join(righe)
+
+        for giorno in sorted(impegni):
+            etichetta = f"{NOMI_GIORNI[giorno.weekday()]} {giorno.strftime('%d/%m')}"
+            if giorno == inizio:
+                etichetta += " (oggi)"
+            elif giorno == inizio + timedelta(days=1):
+                etichetta += " (domani)"
+            righe += ["", f"*{etichetta}*"]
+            for _, riga in sorted(impegni[giorno]):
+                righe.append(f"• {riga}")
+
+        return "\n".join(righe)
+
+    def _copia_negli_appunti(self, testo):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(testo)
+        self.root.update()  # rende disponibile subito il testo alle altre applicazioni
+
+    def copia_settimana(self):
+        """Copia negli appunti gli impegni dei prossimi giorni e mostra un'anteprima modificabile."""
+        testo = self._testo_settimana()
+        self._copia_negli_appunti(testo)
+
+        win = tk.Toplevel(self.root)
+        win.title("Impegni della settimana")
+        win.geometry("520x560")
+        win.configure(bg="#f0f0f0")
+        win.transient(self.root)
+
+        stato = tk.Label(win, text="✅ Copiato negli appunti: incollalo su WhatsApp con Ctrl+V",
+                         font=self.normal_font, bg="#f0f0f0", fg="#1B5E20")
+        stato.pack(anchor=tk.W, padx=10, pady=(10, 5))
+
+        area = tk.Text(win, font=self.normal_font, wrap=tk.WORD, height=20)
+        area.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        area.insert("1.0", testo)
+
+        def ricopia():
+            self._copia_negli_appunti(area.get("1.0", "end-1c"))
+            stato.config(text="✅ Testo modificato copiato negli appunti")
+
+        btn_frame = tk.Frame(win, bg="#f0f0f0")
+        btn_frame.pack(fill=tk.X, padx=10, pady=10)
+        tk.Button(btn_frame, text="📋 Copia di nuovo", command=ricopia, bg="#25D366", fg="white",
+                  font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Chiudi", command=win.destroy, bg="#9E9E9E", fg="white",
+                  font=self.normal_font, width=10).pack(side=tk.LEFT, padx=5)
+
     def _scroll_rotellina(self, event):
         """Scorre la scheda Scadenze Personali con la rotellina del mouse."""
         try:
@@ -838,8 +941,11 @@ class ScadenzeApp:
                      bg="#0F9D58", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
         
         if NOTIFICHE_DISPONIBILI:
-            tk.Button(header_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche, 
+            tk.Button(header_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche,
                      bg="#673AB7", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
+
+        tk.Button(header_frame, text="📋 Copia settimana", command=self.copia_settimana,
+                  bg="#25D366", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
         
         self.scadenze_personali_widgets = {}
         

@@ -57,7 +57,9 @@ def prossima_occorrenza(data_iniziale, ricorrenza, oggi):
     if freq == "MONTHLY":
         mese = data_cercata.year * 12 + data_cercata.month - 1
         mese_iniziale = data_iniziale.year * 12 + data_iniziale.month - 1
-        for indice in range(max(0, mese - mese_iniziale), 121):
+        # Parte dalla ripetizione più vicina al mese cercato (tiene conto dell'intervallo)
+        primo_indice = max(0, (mese - mese_iniziale) // intervallo)
+        for indice in range(primo_indice, primo_indice + 121):
             mese_corrente = mese_iniziale + indice * intervallo
             anno, mese_numero = divmod(mese_corrente, 12)
             giorno = min(data_iniziale.day, calendar.monthrange(anno, mese_numero + 1)[1])
@@ -68,3 +70,23 @@ def prossima_occorrenza(data_iniziale, ricorrenza, oggi):
                 return candidato
 
     return data_iniziale
+
+
+def occorrenze_nel_periodo(data_iniziale, ricorrenza, inizio, fine):
+    """Restituisce tutte le date (in ordine) in cui la voce cade tra inizio e fine inclusi.
+
+    Per una voce non ricorrente è al massimo una data; per una ricorrente
+    sono tutte le ripetizioni nel periodo (es. Lun e Gio della settimana).
+    """
+    if not ricorrenza or not ricorrenza.get("attiva"):
+        return [data_iniziale] if inizio <= data_iniziale <= fine else []
+
+    date_trovate = []
+    cursore = inizio
+    while cursore <= fine:
+        prossima = prossima_occorrenza(data_iniziale, ricorrenza, cursore)
+        if prossima is None or prossima > fine or prossima < cursore:
+            break
+        date_trovate.append(prossima)
+        cursore = prossima + timedelta(days=1)
+    return date_trovate
