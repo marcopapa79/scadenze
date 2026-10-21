@@ -2,6 +2,9 @@
 # tkinter è già incluso in Python
 plyer>=2.0.0
 
+# Immagine "Copia immagine" per WhatsApp
+Pillow>=10.1.0
+
 # Google Calendar (opzionale - per esportazione scadenze)
 google-auth>=2.0.0
 google-auth-oauthlib>=1.0.0

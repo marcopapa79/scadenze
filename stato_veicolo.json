@@ -197,6 +197,13 @@
             "ora_inizio": "15:30",
             "ora_fine": "16:15",
             "ricorrenza": null
+        },
+        "Patronato bonus mamme": {
+            "data": "2026-10-26",
+            "con_orario": true,
+            "ora_inizio": "09:00",
+            "ora_fine": "09:30",
+            "ricorrenza": null
         }
     }
 }

@@ -55,6 +55,7 @@ root.mainloop()
 | `ricorrenze.py` | ~70 | `prossima_occorrenza()`: calcola la prossima data di una scadenza ricorrente |
 | `notifiche.py` | ~175 | Controllo scadenze e invio notifiche desktop con `plyer` |
 | `google_calendar.py` | ~545 | OAuth Google, export eventi (singoli e in blocco, con RRULE), import eventi |
+| `immagine_settimana.py` | ~230 | Immagine a colori degli impegni della settimana e copia negli appunti (Pillow + ctypes) |
 | `stato_veicolo.json` | — | Tutti i dati |
 | `requirements.txt` | — | `plyer` + librerie Google |
 | `credentials.json` / `client_secret_*.json` | — | Credenziali OAuth (escluse da git) |
@@ -232,6 +233,38 @@ Si cambiano nelle costanti `PROMEMORIA_RICORRENTI` e `PROMEMORIA_SINGOLI` in cim
 
 ---
 
+## 10b. Copia settimana (per WhatsApp)
+
+Pulsante **📋 Copia settimana** nella scheda Scadenze Personali (`copia_settimana()` in `main.py`):
+
+1. `_impegni_nel_periodo(oggi, oggi + 6)` raccoglie:
+   - le scadenze personali, con **tutte** le ripetizioni delle ricorrenti nel periodo (`occorrenze_nel_periodo()` in `ricorrenze.py`);
+   - le scadenze a data dei veicoli (es. "Bollo (Corolla)"). Le scadenze a km non sono incluse.
+2. `_testo_settimana()` raggruppa per giorno (solo i giorni con impegni), ordina per orario (prima le voci senza orario) e usa `*testo*` per il grassetto di WhatsApp:
+
+   ```
+   *Impegni dal 18/10 al 24/10*
+
+   *Lunedì 19/10 (domani)*
+   • 15:30-16:00 Luzi Claudia per Andres
+   • 16:30-18:30 Pallavolo Aurora
+   ```
+3. Il testo viene copiato subito negli appunti e mostrato in una finestra modificabile; "Copia di nuovo" ricopia il testo modificato.
+
+Il numero di giorni è la costante `GIORNI_RIEPILOGO = 7` in `main.py`.
+
+### Variante a immagine: 🖼️ Copia immagine
+
+`copia_settimana_immagine()` in `main.py` usa gli stessi impegni, ma li raggruppa per **sezione** (stessa regola della scheda, §5, più "Veicoli") e chiama il modulo `immagine_settimana.py`:
+
+- `crea_immagine(sezioni, inizio, fine)` disegna con **Pillow** un riquadro bianco per ogni sezione che ha impegni, con barra e titolo del colore della sezione; ogni riga mostra giorno, orario in un'etichetta colorata ("tutto il giorno" se senza orario), nome e a destra *OGGI* (rosso), *domani* (arancione) o *tra N giorni* (verde). Disegnata a doppia risoluzione (`SCALA = 2`) per restare nitida su WhatsApp.
+- `copia_immagine_negli_appunti(img)` mette l'immagine negli appunti di Windows tramite `ctypes`, in formato DIB e PNG (quello che usano i browser). Solo su Windows.
+- L'immagine viene salvata anche in `riepilogo_settimana.png` nella cartella del programma e mostrata in anteprima.
+
+Sezioni, titoli e colori sono nella lista `SEZIONI_RIEPILOGO` in `main.py`. Se Pillow manca il pulsante mostra come installarla; `avvia_scadenze.bat` ora controlla `plyer` **e** `PIL` e, se manca uno dei due, installa `requirements.txt`.
+
+---
+
 ## 11. Personalizzazioni frequenti
 
 | Cosa | Dove |
@@ -256,7 +289,7 @@ Verificata il 17/10/2026. I punti 1 e 2 sono stati **riprodotti con un test**.
 `notifiche.py`, `controlla_e_notifica()`, riga 28: usa la variabile `data_obj`, che in quella funzione non esiste. Ne nasce un `NameError`, nascosto dal `except: pass`, quindi Bollo, Assicurazione e Revisione **non generano mai notifiche**, nemmeno se scadute. (Le scadenze a km e quelle personali funzionano.)
 Correzione: passare `None` al posto di `data_obj.get("ricorrenza")`.
 
-**2. Ricorrenza mensile con intervallo > 1 salta occorrenze.**
+**2. ✅ CORRETTO il 18/10/2026 — Ricorrenza mensile con intervallo > 1 salta occorrenze.**
 `ricorrenze.py`, riga 60: l'indice di partenza è il numero di mesi trascorsi, ma viene poi moltiplicato per l'intervallo. Esempio: "ogni 2 mesi dal 15/01", oggi 01/03 → restituisce 15/05 invece di 15/03.
 Correzione: partire da `(mese - mese_iniziale) // intervallo`.
 

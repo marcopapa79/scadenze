@@ -20,6 +20,13 @@ except ImportError:
     GOOGLE_CALENDAR_DISPONIBILE = False
     print("Modulo google_calendar non disponibile")
 
+try:
+    import immagine_settimana
+    IMMAGINE_DISPONIBILE = True
+except ImportError:
+    IMMAGINE_DISPONIBILE = False
+    print("Modulo immagine non disponibile. Installa Pillow: pip install Pillow")
+
 # Configurazione soglie di avviso
 SOGLIA_KM_PREAVVISO = 3500
 SOGLIA_GIORNI_PREAVVISO = 30
@@ -33,6 +40,16 @@ SCROLL_UNITA_PER_SCATTO = 3   # unità per ogni scatto della rotellina (3 x 20 =
 # Riepilogo da copiare (pulsante "Copia settimana"): quanti giorni a partire da oggi
 GIORNI_RIEPILOGO = 7
 NOMI_GIORNI = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+
+# Sezioni dell'immagine "Copia immagine": (chiave, titolo, colore), nell'ordine mostrato
+SEZIONI_RIEPILOGO = [
+    ("visite", "Visite Mediche prenotate", "#009688"),
+    ("da_prenotare", "Visite da prenotare entro il", "#FF9800"),
+    ("scadenze", "Scadenze (Casa, ISEE, IMU, Documenti, Altro)", "#2196F3"),
+    ("feste", "Feste e Compleanni", "#E91E63"),
+    ("veicoli", "Veicoli", "#F44336"),
+]
+FILE_IMMAGINE_RIEPILOGO = "riepilogo_settimana.png"
 
 # Giorni della settimana: (etichetta italiana, codice BYDAY per Google Calendar)
 GIORNI_SETTIMANA = [
@@ -783,7 +800,9 @@ class ScadenzeApp:
         """Raccoglie tutti gli impegni tra inizio e fine (inclusi).
 
         Comprende le scadenze personali (con tutte le ripetizioni delle ricorrenti)
-        e le scadenze a data dei veicoli. Restituisce {data: [(ora_ordinamento, riga), ...]}.
+        e le scadenze a data dei veicoli.
+        Restituisce {data: [(ora_ordinamento, riga, sezione, ora_testo, nome), ...]}
+        dove sezione è una chiave di SEZIONI_RIEPILOGO.
         """
         impegni = {}
 
@@ -798,15 +817,24 @@ class ScadenzeApp:
             ora_inizio = data_obj.get("ora_inizio") if data_obj.get("con_orario") else None
             ora_fine = data_obj.get("ora_fine") if data_obj.get("con_orario") else None
             if ora_inizio and ora_fine:
-                riga = f"{ora_inizio}-{ora_fine} {nome}"
-            elif ora_inizio:
-                riga = f"{ora_inizio} {nome}"
+                ora_testo = f"{ora_inizio}-{ora_fine}"
             else:
-                riga = nome
+                ora_testo = ora_inizio or ""
+            riga = f"{ora_testo} {nome}" if ora_testo else nome
+
+            # Stessa suddivisione della scheda Scadenze Personali
+            if self._is_visita_personale(nome) and self._is_visita_da_prenotare(nome):
+                sezione = "da_prenotare"
+            elif self._is_visita_personale(nome, data_obj):
+                sezione = "visite"
+            elif self._is_festa_compleanno(nome):
+                sezione = "feste"
+            else:
+                sezione = "scadenze"
 
             for giorno in occorrenze_nel_periodo(data_iniziale, data_obj.get("ricorrenza"), inizio, fine):
                 # Le voci senza orario vanno in cima alla giornata
-                impegni.setdefault(giorno, []).append((ora_inizio or "00:00", riga))
+                impegni.setdefault(giorno, []).append((ora_inizio or "00:00", riga, sezione, ora_testo, nome))
 
         for dati_veicolo in self.dati_completi.get("veicoli", {}).values():
             nome_veicolo = dati_veicolo.get("nome_veicolo", "Veicolo")
@@ -816,7 +844,8 @@ class ScadenzeApp:
                 except ValueError:
                     continue
                 if inizio <= giorno <= fine:
-                    impegni.setdefault(giorno, []).append(("00:00", f"{voce} ({nome_veicolo})"))
+                    nome = f"{voce} ({nome_veicolo})"
+                    impegni.setdefault(giorno, []).append(("00:00", nome, "veicoli", "", nome))
 
         return impegni
 
@@ -838,10 +867,86 @@ class ScadenzeApp:
             elif giorno == inizio + timedelta(days=1):
                 etichetta += " (domani)"
             righe += ["", f"*{etichetta}*"]
-            for _, riga in sorted(impegni[giorno]):
-                righe.append(f"• {riga}")
+            for voce in sorted(impegni[giorno]):
+                righe.append(f"• {voce[1]}")
 
         return "\n".join(righe)
+
+    def copia_settimana_immagine(self):
+        """Crea un'immagine a colori degli impegni divisa per sezioni e la copia negli appunti."""
+        if not IMMAGINE_DISPONIBILE:
+            messagebox.showerror(
+                "Errore",
+                "Per creare l'immagine serve la libreria Pillow.\n\n"
+                "Installa con: pip install Pillow\n"
+                "(oppure riavvia con avvia_scadenze.bat, che la installa da solo)"
+            )
+            return
+
+        inizio = datetime.now().date()
+        fine = inizio + timedelta(days=GIORNI_RIEPILOGO - 1)
+        impegni = self._impegni_nel_periodo(inizio, fine)
+
+        # Raggruppa per sezione, ordinando per giorno e orario
+        per_sezione = {chiave: [] for chiave, _, _ in SEZIONI_RIEPILOGO}
+        for giorno, voci in impegni.items():
+            for ora_ord, _, sezione, ora_testo, nome in voci:
+                per_sezione[sezione].append((giorno, ora_ord, {"giorno": giorno, "ora": ora_testo, "nome": nome}))
+        sezioni = [
+            (titolo, colore, [r for _, _, r in sorted(per_sezione[chiave], key=lambda x: (x[0], x[1], x[2]["nome"]))])
+            for chiave, titolo, colore in SEZIONI_RIEPILOGO
+        ]
+
+        img = immagine_settimana.crea_immagine(sezioni, inizio, fine, oggi=inizio)
+
+        # Salva anche un file, utile se si vuole trascinarlo o inviarlo in altro modo
+        percorso = os.path.abspath(FILE_IMMAGINE_RIEPILOGO)
+        try:
+            img.save(percorso)
+        except OSError:
+            percorso = None
+
+        copiato, errore = immagine_settimana.copia_immagine_negli_appunti(img)
+
+        # Anteprima
+        win = tk.Toplevel(self.root)
+        win.title("Impegni della settimana - immagine")
+        win.configure(bg="#f0f0f0")
+        win.transient(self.root)
+
+        if copiato:
+            msg, col = "✅ Immagine copiata negli appunti: incollala su WhatsApp con Ctrl+V", "#1B5E20"
+        else:
+            msg, col = f"⚠️ {errore}", "#B71C1C"
+        if percorso:
+            msg += f"\nSalvata anche in: {percorso}"
+        tk.Label(win, text=msg, font=self.normal_font, bg="#f0f0f0", fg=col,
+                 justify=tk.LEFT).pack(anchor=tk.W, padx=10, pady=(10, 5))
+
+        if percorso:
+            try:
+                # Anteprima a metà dimensione (l'immagine è disegnata a doppia risoluzione)
+                foto = tk.PhotoImage(file=percorso).subsample(immagine_settimana.SCALA)
+                area = tk.Label(win, image=foto, bg="#f0f0f0")
+                area.image = foto  # mantiene il riferimento
+                area.pack(padx=10, pady=5)
+            except tk.TclError:
+                pass
+
+        btn_frame = tk.Frame(win, bg="#f0f0f0")
+        btn_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        def ricopia():
+            ok, err = immagine_settimana.copia_immagine_negli_appunti(img)
+            if ok:
+                messagebox.showinfo("Copiato", "Immagine copiata negli appunti.", parent=win)
+            else:
+                messagebox.showerror("Errore", err, parent=win)
+
+        tk.Button(btn_frame, text="🖼️ Copia di nuovo", command=ricopia, bg="#25D366", fg="white",
+                  font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Chiudi", command=win.destroy, bg="#9E9E9E", fg="white",
+                  font=self.normal_font, width=10).pack(side=tk.LEFT, padx=5)
 
     def _copia_negli_appunti(self, testo):
         self.root.clipboard_clear()
@@ -943,6 +1048,9 @@ class ScadenzeApp:
         if NOTIFICHE_DISPONIBILI:
             tk.Button(header_frame, text="🔔 Controlla Scadenze", command=self.controlla_scadenze_notifiche,
                      bg="#673AB7", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
+
+        tk.Button(header_frame, text="🖼️ Copia immagine", command=self.copia_settimana_immagine,
+                  bg="#128C7E", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
 
         tk.Button(header_frame, text="📋 Copia settimana", command=self.copia_settimana,
                   bg="#25D366", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)

@@ -29,7 +29,7 @@ if exist "venv\Scripts\activate.bat" (
 )
 
 REM Controlla se plyer è installato
-python -c "import plyer" >nul 2>&1
+python -c "import plyer, PIL" >nul 2>&1
 if errorlevel 1 (
     echo.
     echo Installazione dipendenze mancanti...
