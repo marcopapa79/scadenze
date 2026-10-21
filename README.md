@@ -97,7 +97,7 @@ python main.py
 - **🔔 Controlla Scadenze**: Verifica tutte le scadenze (veicoli + personali)
 - **📅 Esporta su Calendar**: Esporta scadenze personali su Google Calendar
 - **📋 Copia settimana**: Copia negli appunti gli impegni da oggi ai prossimi 7 giorni (scadenze personali, ripetizioni settimanali e scadenze a data dei veicoli), già formattati per WhatsApp: basta incollare con Ctrl+V. Si apre anche un'anteprima modificabile con il pulsante "Copia di nuovo"
-- **🖼️ Copia immagine**: Come "Copia settimana", ma copia un'**immagine a colori** divisa nelle stesse sezioni dell'app (Visite prenotate, Visite da prenotare, Scadenze, Feste e compleanni, Veicoli). Su WhatsApp Web si incolla con Ctrl+V come una foto. L'immagine viene salvata anche in `riepilogo_settimana.png` (richiede Pillow, installato da `avvia_scadenze.bat`)
+- **🖼️ Copia immagine**: Come "Copia settimana", ma copia un'**immagine a colori**. Nell'anteprima si sceglie la vista: **📅 Calendario** (settimana con le ore, stile Google Calendar, blocchi colorati per sezione) oppure **📋 Elenco**, divisa nelle stesse sezioni dell'app (Visite prenotate, Visite da prenotare, Scadenze, Feste e compleanni, Veicoli). Su WhatsApp Web si incolla con Ctrl+V come una foto. L'immagine viene salvata anche in `riepilogo_settimana.png` (richiede Pillow, installato da `avvia_scadenze.bat`)
 
 ### Test Notifiche
 

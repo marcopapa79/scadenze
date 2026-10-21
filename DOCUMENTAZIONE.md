@@ -261,6 +261,11 @@ Il numero di giorni è la costante `GIORNI_RIEPILOGO = 7` in `main.py`.
 - `copia_immagine_negli_appunti(img)` mette l'immagine negli appunti di Windows tramite `ctypes`, in formato DIB e PNG (quello che usano i browser). Solo su Windows.
 - L'immagine viene salvata anche in `riepilogo_settimana.png` nella cartella del programma e mostrata in anteprima.
 
+**Due viste**, scelte con i pulsanti in alto nella finestra di anteprima (cambiando vista l'immagine viene rigenerata e ricopiata):
+
+- **📅 Calendario** (predefinita, `VISTA_IMMAGINE_PREDEFINITA` in `main.py`): `crea_immagine_calendario()` disegna una settimana stile Google Calendar con 7 colonne a partire da oggi (oggi evidenziato con il cerchio blu) e le ore a sinistra, da quella del primo impegno a quella dell'ultimo (minimo 4 ore). Ogni impegno con orario è un blocco del colore della sua sezione, con nome e orario; quelli "tutto il giorno" (e le scadenze dei veicoli) stanno in una fascia in alto. Gli impegni sovrapposti vanno **a cascata** (chi inizia dopo sta sopra, spostato a destra) oppure **affiancati** se iniziano a meno di 30 minuti uno dall'altro; il testo resta nella parte visibile del blocco. In fondo una legenda con i colori usati (`LEGENDA_BREVE`).
+- **📋 Elenco**: `crea_immagine()`, un riquadro per sezione (descritta sopra).
+
 Sezioni, titoli e colori sono nella lista `SEZIONI_RIEPILOGO` in `main.py`. Se Pillow manca il pulsante mostra come installarla; `avvia_scadenze.bat` ora controlla `plyer` **e** `PIL` e, se manca uno dei due, installa `requirements.txt`.
 
 ---

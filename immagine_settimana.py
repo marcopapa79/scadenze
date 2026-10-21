@@ -165,6 +165,303 @@ def crea_immagine(sezioni, inizio, fine, oggi=None):
     return img
 
 
+# ---------------------------------------------------------------- vista calendario
+
+LARGHEZZA_CALENDARIO = 1100
+ALTEZZA_ORA = 64            # pixel (non scalati) per ogni ora della griglia
+BLU_OGGI = "#1A73E8"
+
+
+def _scurisci(colore, fattore=0.82):
+    """Rende un colore #RRGGBB un po' più scuro, per far risaltare la scritta bianca."""
+    colore = colore.lstrip("#")
+    r, g, b = (int(colore[i:i + 2], 16) for i in (0, 2, 4))
+    return "#%02X%02X%02X" % (int(r * fattore), int(g * fattore), int(b * fattore))
+
+
+def _minuti(hhmm):
+    ore, minuti = hhmm.split(":")
+    return int(ore) * 60 + int(minuti)
+
+
+def _orario_evento(ora):
+    """'17:30-18:30' → (1050, 1110); '17:30' → (1050, 1110); '' → None (tutto il giorno)."""
+    if not ora:
+        return None
+    try:
+        if "-" in ora:
+            inizio, fine = ora.split("-", 1)
+            a, b = _minuti(inizio.strip()), _minuti(fine.strip())
+        else:
+            a = _minuti(ora.strip())
+            b = a + 60
+    except ValueError:
+        return None
+    if b <= a:
+        b = a + 30
+    return a, b
+
+
+def _a_capo(draw, testo, font, larghezza_max, max_righe):
+    """Divide il testo in righe che stanno nella larghezza; l'ultima riga finisce con '…' se serve."""
+    if max_righe <= 0:
+        return []
+    parole = testo.split()
+    righe, corrente = [], ""
+    for parola in parole:
+        prova = f"{corrente} {parola}".strip()
+        if _larghezza(draw, prova, font) <= larghezza_max:
+            corrente = prova
+        else:
+            if corrente:
+                righe.append(corrente)
+            corrente = parola
+    if corrente:
+        righe.append(corrente)
+    if len(righe) > max_righe:
+        righe = righe[:max_righe]
+        righe[-1] = righe[-1] + " …"
+    return [_accorcia(draw, r, font, larghezza_max) for r in righe]
+
+
+def _disponi_sovrapposti(eventi_giorno):
+    """Assegna a ogni evento (con orario) una colonna, affiancando quelli che si sovrappongono.
+
+    eventi_giorno: lista di dict con 'inizio_min' e 'fine_min'. Aggiunge 'colonna' e 'colonne'.
+    """
+    eventi_giorno.sort(key=lambda e: (e["inizio_min"], -e["fine_min"]))
+    gruppo, fine_gruppo = [], -1
+    fine_colonne = []
+
+    def chiudi_gruppo():
+        # Affianca solo se due impegni sovrapposti iniziano a meno di 30 minuti di distanza
+        # (altrimenti verrebbe coperto il titolo); se no li sovrappone a cascata come Google.
+        affianca = any(
+            abs(a["inizio_min"] - b["inizio_min"]) < 30
+            for i, a in enumerate(gruppo) for b in gruppo[i + 1:]
+            if a["inizio_min"] < b["fine_min"] and b["inizio_min"] < a["fine_min"]
+        )
+        for e in gruppo:
+            e["colonne"] = len(fine_colonne)
+            e["affianca"] = affianca
+
+    for e in eventi_giorno:
+        if gruppo and e["inizio_min"] >= fine_gruppo:
+            chiudi_gruppo()
+            gruppo, fine_colonne = [], []
+        for i, fine_col in enumerate(fine_colonne):
+            if fine_col <= e["inizio_min"]:
+                e["colonna"] = i
+                fine_colonne[i] = e["fine_min"]
+                break
+        else:
+            e["colonna"] = len(fine_colonne)
+            fine_colonne.append(e["fine_min"])
+        gruppo.append(e)
+        fine_gruppo = max(fine_gruppo, e["fine_min"])
+    if gruppo:
+        chiudi_gruppo()
+
+
+def crea_immagine_calendario(eventi, inizio, giorni=7, oggi=None, legenda=None):
+    """
+    Vista a calendario settimanale (stile Google Calendar).
+
+    eventi:  lista di dict {"giorno": date, "ora": "17:30-18:30" | "17:30" | "", "nome": str, "colore": "#RRGGBB"}
+    legenda: lista di (titolo, colore) da mostrare in fondo (solo le sezioni usate)
+    """
+    from datetime import timedelta
+
+    oggi = oggi or date.today()
+    s = SCALA
+    f_titolo = _carica_font(30, True)
+    f_sottotitolo = _carica_font(16)
+    f_giorno_sett = _carica_font(15, True)
+    f_numero = _carica_font(28, True)
+    f_ore = _carica_font(14, True)
+    f_evento = _carica_font(15, True)
+    f_evento_ora = _carica_font(13, True)
+    f_legenda = _carica_font(15)
+
+    margine = 16 * s
+    gutter = 62 * s
+    larghezza = LARGHEZZA_CALENDARIO * s
+    larg_col = (larghezza - 2 * margine - gutter) / giorni
+    giorni_lista = [inizio + timedelta(days=i) for i in range(giorni)]
+    fine = giorni_lista[-1]
+
+    # Separa eventi con orario e "tutto il giorno"
+    con_orario = {g: [] for g in giorni_lista}
+    tutto_giorno = {g: [] for g in giorni_lista}
+    for ev in eventi:
+        if ev["giorno"] not in con_orario:
+            continue
+        orario = _orario_evento(ev.get("ora", ""))
+        if orario:
+            e = dict(ev, inizio_min=orario[0], fine_min=orario[1])
+            con_orario[ev["giorno"]].append(e)
+        else:
+            tutto_giorno[ev["giorno"]].append(ev)
+    for g in giorni_lista:
+        _disponi_sovrapposti(con_orario[g])
+
+    tutti_orari = [e for g in giorni_lista for e in con_orario[g]]
+    if tutti_orari:
+        ora_inizio = max(0, min(e["inizio_min"] for e in tutti_orari) // 60)
+        ora_fine = min(24, -(-max(e["fine_min"] for e in tutti_orari) // 60))
+        if ora_fine - ora_inizio < 4:
+            ora_fine = min(24, ora_inizio + 4)
+    else:
+        ora_inizio = ora_fine = 0
+
+    # Altezze delle fasce
+    alt_testata = 92 * s
+    alt_giorni = 78 * s
+    alt_chip = 28 * s
+    max_tutto_giorno = max((len(v) for v in tutto_giorno.values()), default=0)
+    alt_tutto_giorno = (max_tutto_giorno * (alt_chip + 3 * s) + 6 * s) if max_tutto_giorno else 0
+    alt_griglia = (ora_fine - ora_inizio) * ALTEZZA_ORA * s + (22 * s if tutti_orari else 0)
+    alt_vuoto = 50 * s if not tutti_orari and not max_tutto_giorno else 0
+    alt_legenda = 44 * s if legenda else 0
+    alt_piede = 30 * s
+    altezza = alt_testata + alt_giorni + alt_tutto_giorno + alt_griglia + alt_vuoto + alt_legenda + alt_piede + 10 * s
+
+    img = Image.new("RGB", (larghezza, altezza), SFONDO)
+    d = ImageDraw.Draw(img)
+
+    # Testata
+    d.text((margine, 14 * s), "Impegni della settimana", font=f_titolo, fill=TESTO)
+    d.text((margine, 56 * s), f"dal {inizio.strftime('%d/%m')} al {fine.strftime('%d/%m/%Y')}",
+           font=f_sottotitolo, fill=TESTO_CHIARO)
+
+    # Riquadro bianco del calendario
+    x0 = margine + gutter
+    y_cal = alt_testata
+    y_fondo_cal = y_cal + alt_giorni + alt_tutto_giorno + alt_griglia + alt_vuoto
+    d.rounded_rectangle((margine, y_cal, larghezza - margine, y_fondo_cal),
+                        radius=12 * s, fill="white", outline=SEPARATORE, width=s)
+
+    def x_col(i):
+        return x0 + i * larg_col
+
+    # Colonna di oggi leggermente evidenziata
+    for i, g in enumerate(giorni_lista):
+        if g == oggi:
+            d.rectangle((x_col(i) + s, y_cal + s, x_col(i + 1) - s, y_fondo_cal - s), fill="#F1F6FE")
+
+    # Intestazioni dei giorni
+    for i, g in enumerate(giorni_lista):
+        cx = x_col(i) + larg_col / 2
+        col_testo = BLU_OGGI if g == oggi else TESTO_CHIARO
+        d.text((cx, y_cal + 18 * s), GIORNI_BREVI[g.weekday()].upper(), font=f_giorno_sett,
+               fill=col_testo, anchor="mm")
+        cy = y_cal + 50 * s
+        if g == oggi:
+            r = 21 * s
+            d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=BLU_OGGI)
+            d.text((cx, cy), str(g.day), font=f_numero, fill="white", anchor="mm")
+        else:
+            d.text((cx, cy), str(g.day), font=f_numero, fill=TESTO, anchor="mm")
+
+    # Linee verticali tra i giorni
+    for i in range(giorni + 1):
+        d.line((x_col(i), y_cal + alt_giorni - 6 * s, x_col(i), y_fondo_cal - 2 * s), fill=SEPARATORE, width=s)
+    d.line((margine, y_cal + alt_giorni, larghezza - margine, y_cal + alt_giorni), fill="#BDBDBD", width=s)
+
+    # Fascia "tutto il giorno"
+    y = y_cal + alt_giorni
+    if max_tutto_giorno:
+        d.text((x0 - 6 * s, y + 6 * s + alt_chip / 2), "tutto il\ngiorno", font=f_ore,
+               fill=TESTO_CHIARO, anchor="rm", align="right")
+        for i, g in enumerate(giorni_lista):
+            yc = y + 6 * s
+            for ev in tutto_giorno[g]:
+                d.rounded_rectangle((x_col(i) + 3 * s, yc, x_col(i + 1) - 3 * s, yc + alt_chip),
+                                    radius=6 * s, fill=_scurisci(ev["colore"]))
+                nome = _accorcia(d, ev["nome"], f_evento, larg_col - 14 * s)
+                d.text((x_col(i) + 8 * s, yc + alt_chip / 2), nome, font=f_evento, fill="white", anchor="lm")
+                yc += alt_chip + 3 * s
+        y += alt_tutto_giorno
+        d.line((margine, y, larghezza - margine, y), fill="#BDBDBD", width=s)
+
+    # Griglia oraria ed eventi
+    if tutti_orari:
+        y_griglia = y + 8 * s
+        alt_ora = ALTEZZA_ORA * s
+        for h in range(ora_inizio, ora_fine + 1):
+            yl = y_griglia + (h - ora_inizio) * alt_ora
+            if h < ora_fine:
+                d.line((x0, yl, larghezza - margine - s, yl), fill=SEPARATORE, width=s)
+            d.text((x0 - 6 * s, yl), f"{h:02d}:00", font=f_ore, fill=TESTO_CHIARO, anchor="rm")
+
+        def y_minuti(m):
+            return y_griglia + (m - ora_inizio * 60) / 60 * alt_ora
+
+        for i, g in enumerate(giorni_lista):
+            for e in con_orario[g]:
+                if e["affianca"]:
+                    larg_sub = (larg_col - 6 * s) / e["colonne"]
+                    bx0 = x_col(i) + 3 * s + e["colonna"] * larg_sub
+                    bx1 = bx0 + larg_sub - 2 * s
+                else:
+                    # A cascata: chi inizia dopo sta sopra, spostato un po' a destra
+                    bx0 = x_col(i) + 3 * s + e["colonna"] * 12 * s
+                    bx1 = x_col(i + 1) - 3 * s
+                by0 = y_minuti(e["inizio_min"]) + s
+                by1 = max(y_minuti(e["fine_min"]) - s, by0 + 46 * s)  # minimo: 2 righe di nome
+                d.rounded_rectangle((bx0, by0, bx1, by1), radius=6 * s, fill=_scurisci(e["colore"]),
+                                    outline="white", width=s)
+
+                # Testo: nome in grassetto (a capo se serve) e orario sotto, se c'è spazio
+                spazio_testo = bx1 - bx0 - 10 * s
+                alt_riga_nome = 19 * s
+                alt_riga_ora = 17 * s
+                # Parte visibile: se un impegno successivo gli si sovrappone sopra (a cascata),
+                # il testo deve stare prima dell'inizio di quello
+                fine_visibile = by1
+                if not e["affianca"]:
+                    for altro in con_orario[g]:
+                        if (altro["colonna"] > e["colonna"]
+                                and e["inizio_min"] <= altro["inizio_min"] < e["fine_min"]):
+                            fine_visibile = min(fine_visibile, y_minuti(altro["inizio_min"]))
+                alt_visibile = max(fine_visibile - by0, 46 * s)
+                righe_disp = int((alt_visibile - 4 * s) // alt_riga_nome)
+                mostra_ora = (alt_visibile - 4 * s) >= alt_riga_nome + alt_riga_ora
+                # Se il nome non entra insieme all'orario, meglio il nome intero senza orario
+                # (l'orario si capisce comunque dalla posizione nella griglia)
+                righe_necessarie = len(_a_capo(d, e["nome"], f_evento, spazio_testo, 99))
+                spazio_con_ora = (alt_visibile - 4 * s - alt_riga_ora) // alt_riga_nome
+                if mostra_ora and righe_necessarie > spazio_con_ora:
+                    mostra_ora = False
+                righe_nome = _a_capo(d, e["nome"], f_evento, spazio_testo,
+                                     max(1, righe_disp - (1 if mostra_ora else 0)))
+                yt = by0 + 4 * s
+                for riga in righe_nome:
+                    d.text((bx0 + 6 * s, yt), riga, font=f_evento, fill="white")
+                    yt += alt_riga_nome
+                if mostra_ora:
+                    testo_ora = e["ora"].replace("-", " - ")
+                    testo_ora = _accorcia(d, testo_ora, f_evento_ora, spazio_testo)
+                    d.text((bx0 + 6 * s, yt), testo_ora, font=f_evento_ora, fill="white")
+    elif not max_tutto_giorno:
+        d.text((larghezza / 2, y + alt_vuoto / 2), "Nessun impegno in programma.",
+               font=f_sottotitolo, fill=TESTO_CHIARO, anchor="mm")
+
+    # Legenda
+    if legenda:
+        xl = margine + 4 * s
+        yl = y_fondo_cal + 14 * s
+        for titolo, colore in legenda:
+            d.rounded_rectangle((xl, yl, xl + 18 * s, yl + 18 * s), radius=4 * s, fill=_scurisci(colore))
+            d.text((xl + 24 * s, yl + 9 * s), titolo, font=f_legenda, fill=TESTO, anchor="lm")
+            xl += 24 * s + _larghezza(d, titolo, f_legenda) + 22 * s
+
+    piede = f"Gestione Scadenze • creato il {oggi.strftime('%d/%m/%Y')}"
+    d.text((larghezza - margine, altezza - alt_piede // 2 - 4 * s), piede, font=f_sottotitolo,
+           fill=TESTO_CHIARO, anchor="rm")
+    return img
+
+
 # ---------------------------------------------------------------- appunti (Windows)
 
 def copia_immagine_negli_appunti(img):

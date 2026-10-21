@@ -50,6 +50,16 @@ SEZIONI_RIEPILOGO = [
     ("veicoli", "Veicoli", "#F44336"),
 ]
 FILE_IMMAGINE_RIEPILOGO = "riepilogo_settimana.png"
+# Vista proposta all'apertura di "Copia immagine": "calendario" oppure "elenco"
+VISTA_IMMAGINE_PREDEFINITA = "calendario"
+# Nomi brevi delle sezioni per la legenda del calendario
+LEGENDA_BREVE = {
+    "visite": "Visite",
+    "da_prenotare": "Visite da prenotare",
+    "scadenze": "Scadenze",
+    "feste": "Feste e compleanni",
+    "veicoli": "Veicoli",
+}
 
 # Giorni della settimana: (etichetta italiana, codice BYDAY per Google Calendar)
 GIORNI_SETTIMANA = [
@@ -872,8 +882,36 @@ class ScadenzeApp:
 
         return "\n".join(righe)
 
+    def _immagine_settimana(self, vista):
+        """Crea l'immagine degli impegni dei prossimi giorni: vista 'calendario' o 'elenco'."""
+        inizio = datetime.now().date()
+        fine = inizio + timedelta(days=GIORNI_RIEPILOGO - 1)
+        impegni = self._impegni_nel_periodo(inizio, fine)
+
+        if vista == "calendario":
+            colori = {chiave: colore for chiave, _, colore in SEZIONI_RIEPILOGO}
+            eventi, usate = [], set()
+            for giorno, voci in impegni.items():
+                for _, _, sezione, ora_testo, nome in voci:
+                    eventi.append({"giorno": giorno, "ora": ora_testo, "nome": nome, "colore": colori[sezione]})
+                    usate.add(sezione)
+            legenda = [(LEGENDA_BREVE[chiave], colore) for chiave, _, colore in SEZIONI_RIEPILOGO if chiave in usate]
+            return immagine_settimana.crea_immagine_calendario(
+                eventi, inizio, giorni=GIORNI_RIEPILOGO, oggi=inizio, legenda=legenda)
+
+        # Vista elenco: raggruppa per sezione, ordinando per giorno e orario
+        per_sezione = {chiave: [] for chiave, _, _ in SEZIONI_RIEPILOGO}
+        for giorno, voci in impegni.items():
+            for ora_ord, _, sezione, ora_testo, nome in voci:
+                per_sezione[sezione].append((giorno, ora_ord, {"giorno": giorno, "ora": ora_testo, "nome": nome}))
+        sezioni = [
+            (titolo, colore, [r for _, _, r in sorted(per_sezione[chiave], key=lambda x: (x[0], x[1], x[2]["nome"]))])
+            for chiave, titolo, colore in SEZIONI_RIEPILOGO
+        ]
+        return immagine_settimana.crea_immagine(sezioni, inizio, fine, oggi=inizio)
+
     def copia_settimana_immagine(self):
-        """Crea un'immagine a colori degli impegni divisa per sezioni e la copia negli appunti."""
+        """Crea un'immagine a colori degli impegni (calendario o elenco) e la copia negli appunti."""
         if not IMMAGINE_DISPONIBILE:
             messagebox.showerror(
                 "Errore",
@@ -883,70 +921,77 @@ class ScadenzeApp:
             )
             return
 
-        inizio = datetime.now().date()
-        fine = inizio + timedelta(days=GIORNI_RIEPILOGO - 1)
-        impegni = self._impegni_nel_periodo(inizio, fine)
-
-        # Raggruppa per sezione, ordinando per giorno e orario
-        per_sezione = {chiave: [] for chiave, _, _ in SEZIONI_RIEPILOGO}
-        for giorno, voci in impegni.items():
-            for ora_ord, _, sezione, ora_testo, nome in voci:
-                per_sezione[sezione].append((giorno, ora_ord, {"giorno": giorno, "ora": ora_testo, "nome": nome}))
-        sezioni = [
-            (titolo, colore, [r for _, _, r in sorted(per_sezione[chiave], key=lambda x: (x[0], x[1], x[2]["nome"]))])
-            for chiave, titolo, colore in SEZIONI_RIEPILOGO
-        ]
-
-        img = immagine_settimana.crea_immagine(sezioni, inizio, fine, oggi=inizio)
-
-        # Salva anche un file, utile se si vuole trascinarlo o inviarlo in altro modo
-        percorso = os.path.abspath(FILE_IMMAGINE_RIEPILOGO)
-        try:
-            img.save(percorso)
-        except OSError:
-            percorso = None
-
-        copiato, errore = immagine_settimana.copia_immagine_negli_appunti(img)
-
-        # Anteprima
         win = tk.Toplevel(self.root)
         win.title("Impegni della settimana - immagine")
         win.configure(bg="#f0f0f0")
         win.transient(self.root)
 
-        if copiato:
-            msg, col = "✅ Immagine copiata negli appunti: incollala su WhatsApp con Ctrl+V", "#1B5E20"
-        else:
-            msg, col = f"⚠️ {errore}", "#B71C1C"
-        if percorso:
-            msg += f"\nSalvata anche in: {percorso}"
-        tk.Label(win, text=msg, font=self.normal_font, bg="#f0f0f0", fg=col,
-                 justify=tk.LEFT).pack(anchor=tk.W, padx=10, pady=(10, 5))
+        var_vista = tk.StringVar(value=VISTA_IMMAGINE_PREDEFINITA)
+        stato = {"img": None}
 
-        if percorso:
-            try:
-                # Anteprima a metà dimensione (l'immagine è disegnata a doppia risoluzione)
-                foto = tk.PhotoImage(file=percorso).subsample(immagine_settimana.SCALA)
-                area = tk.Label(win, image=foto, bg="#f0f0f0")
-                area.image = foto  # mantiene il riferimento
-                area.pack(padx=10, pady=5)
-            except tk.TclError:
-                pass
+        # Barra in alto: scelta della vista e pulsanti (sempre visibili)
+        barra = tk.Frame(win, bg="#f0f0f0")
+        barra.pack(fill=tk.X, padx=10, pady=(10, 0))
+        tk.Label(barra, text="Vista:", font=self.normal_font, bg="#f0f0f0").pack(side=tk.LEFT)
+        lbl_msg = tk.Label(win, text="", font=self.normal_font, bg="#f0f0f0", justify=tk.LEFT)
+        lbl_msg.pack(anchor=tk.W, padx=10, pady=(6, 4))
+        area = tk.Label(win, bg="#f0f0f0")
+        area.pack(padx=10, pady=(0, 10))
 
-        btn_frame = tk.Frame(win, bg="#f0f0f0")
-        btn_frame.pack(fill=tk.X, padx=10, pady=10)
-
-        def ricopia():
-            ok, err = immagine_settimana.copia_immagine_negli_appunti(img)
-            if ok:
-                messagebox.showinfo("Copiato", "Immagine copiata negli appunti.", parent=win)
+        def copia_e_mostra():
+            img = stato["img"]
+            copiato, errore = immagine_settimana.copia_immagine_negli_appunti(img)
+            if copiato:
+                msg, col = "✅ Immagine copiata negli appunti: incollala su WhatsApp con Ctrl+V", "#1B5E20"
             else:
-                messagebox.showerror("Errore", err, parent=win)
+                msg, col = f"⚠️ {errore}", "#B71C1C"
+            if stato.get("percorso"):
+                msg += f"\nSalvata anche in: {stato['percorso']}"
+            lbl_msg.config(text=msg, fg=col)
 
-        tk.Button(btn_frame, text="🖼️ Copia di nuovo", command=ricopia, bg="#25D366", fg="white",
-                  font=self.normal_font).pack(side=tk.LEFT, padx=5)
-        tk.Button(btn_frame, text="Chiudi", command=win.destroy, bg="#9E9E9E", fg="white",
-                  font=self.normal_font, width=10).pack(side=tk.LEFT, padx=5)
+        def genera(*_):
+            img = self._immagine_settimana(var_vista.get())
+            stato["img"] = img
+            # Salva anche un file, utile se si vuole trascinarlo o inviarlo in altro modo
+            percorso = os.path.abspath(FILE_IMMAGINE_RIEPILOGO)
+            try:
+                img.save(percorso)
+                stato["percorso"] = percorso
+            except OSError:
+                stato["percorso"] = None
+            copia_e_mostra()
+            # Anteprima ridotta per stare nello schermo, rimpicciolita in modo morbido
+            # (l'immagine copiata resta a piena risoluzione)
+            altezza_max = int(self.root.winfo_screenheight() * 0.75)
+            larghezza_max = int(self.root.winfo_screenwidth() * 0.85)
+            rapporto = min(altezza_max / img.height, larghezza_max / img.width, 1.0)
+            try:
+                from PIL import ImageTk
+                ridotta = img.resize((int(img.width * rapporto), int(img.height * rapporto)),
+                                     immagine_settimana.Image.LANCZOS)
+                foto = ImageTk.PhotoImage(ridotta, master=win)
+            except Exception:
+                foto = None
+                if stato["percorso"]:
+                    try:
+                        fattore = max(1, round(1 / rapporto))
+                        foto = tk.PhotoImage(file=stato["percorso"]).subsample(fattore)
+                    except tk.TclError:
+                        foto = None
+            if foto is not None:
+                area.config(image=foto)
+                area.image = foto  # mantiene il riferimento
+
+        for valore, testo in (("calendario", "📅 Calendario"), ("elenco", "📋 Elenco")):
+            tk.Radiobutton(barra, text=testo, variable=var_vista, value=valore, command=genera,
+                           font=self.normal_font, bg="#f0f0f0", indicatoron=False,
+                           selectcolor="#C8E6C9", padx=8, pady=2).pack(side=tk.LEFT, padx=4)
+        tk.Button(barra, text="🖼️ Copia di nuovo", command=copia_e_mostra, bg="#25D366", fg="white",
+                  font=self.normal_font).pack(side=tk.LEFT, padx=(16, 4))
+        tk.Button(barra, text="Chiudi", command=win.destroy, bg="#9E9E9E", fg="white",
+                  font=self.normal_font, width=10).pack(side=tk.LEFT, padx=4)
+
+        genera()
 
     def _copia_negli_appunti(self, testo):
         self.root.clipboard_clear()
