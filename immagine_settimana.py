@@ -144,6 +144,8 @@ def crea_immagine(sezioni, inizio, fine, oggi=None):
                 stato, col_stato = "OGGI", "#D32F2F"
             elif diff == 1:
                 stato, col_stato = "domani", "#EF6C00"
+            elif diff < 0:
+                stato, col_stato = ("ieri" if diff == -1 else f"{-diff} giorni fa"), "#757575"
             else:
                 stato, col_stato = f"tra {diff} giorni", "#2E7D32"
             l_stato = _larghezza(d, stato, f_stato)

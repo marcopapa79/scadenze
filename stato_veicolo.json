@@ -204,6 +204,15 @@
             "ora_inizio": "09:00",
             "ora_fine": "09:30",
             "ricorrenza": null
+        },
+        "Vaccino Beatrice": {
+            "data": "2026-11-03",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null,
+            "ricorrenza": {
+                "attiva": false
+            }
         }
     }
 }

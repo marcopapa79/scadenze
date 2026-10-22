@@ -859,9 +859,10 @@ class ScadenzeApp:
 
         return impegni
 
-    def _testo_settimana(self, giorni=GIORNI_RIEPILOGO):
+    def _testo_settimana(self, inizio=None, giorni=GIORNI_RIEPILOGO):
         """Crea il testo del riepilogo, già formattato per WhatsApp (*grassetto*)."""
-        inizio = datetime.now().date()
+        oggi = datetime.now().date()
+        inizio = inizio or oggi
         fine = inizio + timedelta(days=giorni - 1)
         impegni = self._impegni_nel_periodo(inizio, fine)
 
@@ -872,9 +873,9 @@ class ScadenzeApp:
 
         for giorno in sorted(impegni):
             etichetta = f"{NOMI_GIORNI[giorno.weekday()]} {giorno.strftime('%d/%m')}"
-            if giorno == inizio:
+            if giorno == oggi:
                 etichetta += " (oggi)"
-            elif giorno == inizio + timedelta(days=1):
+            elif giorno == oggi + timedelta(days=1):
                 etichetta += " (domani)"
             righe += ["", f"*{etichetta}*"]
             for voce in sorted(impegni[giorno]):
@@ -882,9 +883,9 @@ class ScadenzeApp:
 
         return "\n".join(righe)
 
-    def _immagine_settimana(self, vista):
+    def _immagine_settimana(self, vista, inizio=None):
         """Crea l'immagine degli impegni dei prossimi giorni: vista 'calendario' o 'elenco'."""
-        inizio = datetime.now().date()
+        inizio = inizio or datetime.now().date()
         fine = inizio + timedelta(days=GIORNI_RIEPILOGO - 1)
         impegni = self._impegni_nel_periodo(inizio, fine)
 
@@ -897,7 +898,7 @@ class ScadenzeApp:
                     usate.add(sezione)
             legenda = [(LEGENDA_BREVE[chiave], colore) for chiave, _, colore in SEZIONI_RIEPILOGO if chiave in usate]
             return immagine_settimana.crea_immagine_calendario(
-                eventi, inizio, giorni=GIORNI_RIEPILOGO, oggi=inizio, legenda=legenda)
+                eventi, inizio, giorni=GIORNI_RIEPILOGO, legenda=legenda)
 
         # Vista elenco: raggruppa per sezione, ordinando per giorno e orario
         per_sezione = {chiave: [] for chiave, _, _ in SEZIONI_RIEPILOGO}
@@ -908,7 +909,49 @@ class ScadenzeApp:
             (titolo, colore, [r for _, _, r in sorted(per_sezione[chiave], key=lambda x: (x[0], x[1], x[2]["nome"]))])
             for chiave, titolo, colore in SEZIONI_RIEPILOGO
         ]
-        return immagine_settimana.crea_immagine(sezioni, inizio, fine, oggi=inizio)
+        return immagine_settimana.crea_immagine(sezioni, inizio, fine)
+
+    def _barra_data_inizio(self, parent, stato, al_cambio):
+        """Aggiunge a parent i controlli per scegliere il giorno di inizio (stato["inizio"])."""
+        tk.Label(parent, text="Dal:", font=self.normal_font, bg="#f0f0f0").pack(side=tk.LEFT)
+        var_data = tk.StringVar(value=stato["inizio"].strftime("%d/%m/%Y"))
+
+        def imposta(nuova):
+            stato["inizio"] = nuova
+            var_data.set(nuova.strftime("%d/%m/%Y"))
+            al_cambio()
+
+        def da_campo(*_):
+            testo = var_data.get().strip().replace("-", "/").replace(".", "/")
+            for formato in ("%d/%m/%Y", "%d/%m/%y", "%d/%m"):
+                try:
+                    nuova = datetime.strptime(testo, formato).date()
+                except ValueError:
+                    continue
+                if formato == "%d/%m":
+                    nuova = nuova.replace(year=datetime.now().year)
+                imposta(nuova)
+                return
+            messagebox.showerror("Errore", "Data non valida. Usa il formato GG/MM/AAAA",
+                                 parent=parent.winfo_toplevel())
+
+        def sposta(giorni):
+            return lambda: imposta(stato["inizio"] + timedelta(days=giorni))
+
+        tk.Button(parent, text="<<", font=self.normal_font, width=3,
+                  command=sposta(-GIORNI_RIEPILOGO)).pack(side=tk.LEFT, padx=2)
+        tk.Button(parent, text="<", font=self.normal_font, width=3,
+                  command=sposta(-1)).pack(side=tk.LEFT, padx=2)
+        campo = tk.Entry(parent, textvariable=var_data, font=self.normal_font, width=11, justify=tk.CENTER)
+        campo.pack(side=tk.LEFT, padx=2)
+        campo.bind("<Return>", da_campo)
+        tk.Button(parent, text=">", font=self.normal_font, width=3,
+                  command=sposta(1)).pack(side=tk.LEFT, padx=2)
+        tk.Button(parent, text=">>", font=self.normal_font, width=3,
+                  command=sposta(GIORNI_RIEPILOGO)).pack(side=tk.LEFT, padx=2)
+        tk.Button(parent, text="Vai", font=self.normal_font, command=da_campo).pack(side=tk.LEFT, padx=2)
+        tk.Button(parent, text="Oggi", font=self.normal_font,
+                  command=lambda: imposta(datetime.now().date())).pack(side=tk.LEFT, padx=(2, 12))
 
     def copia_settimana_immagine(self):
         """Crea un'immagine a colori degli impegni (calendario o elenco) e la copia negli appunti."""
@@ -927,11 +970,12 @@ class ScadenzeApp:
         win.transient(self.root)
 
         var_vista = tk.StringVar(value=VISTA_IMMAGINE_PREDEFINITA)
-        stato = {"img": None}
+        stato = {"img": None, "inizio": datetime.now().date()}
 
         # Barra in alto: scelta della vista e pulsanti (sempre visibili)
         barra = tk.Frame(win, bg="#f0f0f0")
         barra.pack(fill=tk.X, padx=10, pady=(10, 0))
+        self._barra_data_inizio(barra, stato, lambda: genera())
         tk.Label(barra, text="Vista:", font=self.normal_font, bg="#f0f0f0").pack(side=tk.LEFT)
         lbl_msg = tk.Label(win, text="", font=self.normal_font, bg="#f0f0f0", justify=tk.LEFT)
         lbl_msg.pack(anchor=tk.W, padx=10, pady=(6, 4))
@@ -950,7 +994,7 @@ class ScadenzeApp:
             lbl_msg.config(text=msg, fg=col)
 
         def genera(*_):
-            img = self._immagine_settimana(var_vista.get())
+            img = self._immagine_settimana(var_vista.get(), stato["inizio"])
             stato["img"] = img
             # Salva anche un file, utile se si vuole trascinarlo o inviarlo in altro modo
             percorso = os.path.abspath(FILE_IMMAGINE_RIEPILOGO)
@@ -1005,9 +1049,22 @@ class ScadenzeApp:
 
         win = tk.Toplevel(self.root)
         win.title("Impegni della settimana")
-        win.geometry("520x560")
+        win.geometry("560x600")
         win.configure(bg="#f0f0f0")
         win.transient(self.root)
+
+        periodo = {"inizio": datetime.now().date()}
+
+        def rigenera():
+            nuovo = self._testo_settimana(periodo["inizio"])
+            area.delete("1.0", tk.END)
+            area.insert("1.0", nuovo)
+            self._copia_negli_appunti(nuovo)
+            stato.config(text="✅ Copiato negli appunti: incollalo su WhatsApp con Ctrl+V")
+
+        barra_data = tk.Frame(win, bg="#f0f0f0")
+        barra_data.pack(fill=tk.X, padx=10, pady=(10, 0))
+        self._barra_data_inizio(barra_data, periodo, rigenera)
 
         stato = tk.Label(win, text="✅ Copiato negli appunti: incollalo su WhatsApp con Ctrl+V",
                          font=self.normal_font, bg="#f0f0f0", fg="#1B5E20")
