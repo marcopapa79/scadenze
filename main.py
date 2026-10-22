@@ -1,6 +1,7 @@
 import json
 import os
-from datetime import datetime, timedelta
+import re
+from datetime import date, datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from tkinter import font as tkfont
@@ -129,6 +130,34 @@ def data_italiana_a_iso(data_ita):
         return data_obj.strftime("%Y-%m-%d")
     except:
         return data_ita
+
+
+def interpreta_data(testo, riferimento):
+    """Interpreta una data scritta a mano: GG/MM/AAAA, GG/MM/AA oppure GG/MM.
+
+    Accetta anche '-' e '.' come separatori. Senza anno sceglie l'anno che rende
+    la data più vicina a `riferimento` (es. a ottobre "5/1" = 5 gennaio dell'anno dopo).
+    Restituisce un oggetto date oppure None se la data non è valida.
+    """
+    parti = testo.strip().replace("-", "/").replace(".", "/").split("/")
+    if len(parti) not in (2, 3) or not all(p.isdigit() for p in parti):
+        return None
+    giorno, mese = int(parti[0]), int(parti[1])
+    if len(parti) == 3:
+        anno = int(parti[2])
+        if len(parti[2]) <= 2:
+            anno += 2000
+        try:
+            return date(anno, mese, giorno)
+        except ValueError:
+            return None
+    candidati = []
+    for anno in range(riferimento.year - 4, riferimento.year + 5):  # +-4 anni: copre anche il 29/02
+        try:
+            candidati.append(date(anno, mese, giorno))
+        except ValueError:
+            pass
+    return min(candidati, key=lambda d: abs((d - riferimento).days)) if candidati else None
 
 
 class ScadenzeApp:
@@ -883,11 +912,15 @@ class ScadenzeApp:
 
         return "\n".join(righe)
 
-    def _immagine_settimana(self, vista, inizio=None):
-        """Crea l'immagine degli impegni dei prossimi giorni: vista 'calendario' o 'elenco'."""
+    def _immagine_settimana(self, vista, inizio=None, impegni=None):
+        """Crea l'immagine degli impegni dei prossimi giorni: vista 'calendario' o 'elenco'.
+
+        Se `impegni` è dato (impegni modificati a mano) usa quelli invece dei dati dell'app.
+        """
         inizio = inizio or datetime.now().date()
         fine = inizio + timedelta(days=GIORNI_RIEPILOGO - 1)
-        impegni = self._impegni_nel_periodo(inizio, fine)
+        if impegni is None:
+            impegni = self._impegni_nel_periodo(inizio, fine)
 
         if vista == "calendario":
             colori = {chiave: colore for chiave, _, colore in SEZIONI_RIEPILOGO}
@@ -911,6 +944,103 @@ class ScadenzeApp:
         ]
         return immagine_settimana.crea_immagine(sezioni, inizio, fine)
 
+    # ------------------------------------------------ impegni modificabili come testo
+
+    # Riga impegno: [giorno settimana] GG/MM[/AAAA]  [HH:MM[-HH:MM]]  Nome
+    _RIGA_IMPEGNO = re.compile(
+        r"^\s*(?:[A-Za-zÀ-ÿ]{2,10}\.?\s+)?"              # giorno della settimana (facoltativo, ignorato)
+        r"(\d{1,2}[/.\-]\d{1,2}(?:[/.\-]\d{2,4})?)\s+"   # data
+        r"(?:(\d{1,2}[:.]\d{2})(?:\s*-\s*(\d{1,2}[:.]\d{2}))?\s+)?"  # orario (facoltativo)
+        r"(.+?)\s*$"                                       # nome
+    )
+
+    def _testo_da_impegni(self, impegni):
+        """Trasforma gli impegni in testo modificabile, una riga per impegno, diviso per sezioni."""
+        per_sezione = {chiave: [] for chiave, _, _ in SEZIONI_RIEPILOGO}
+        for giorno, voci in impegni.items():
+            for ora_ord, _, sezione, ora_testo, nome in voci:
+                per_sezione[sezione].append((giorno, ora_ord, nome, ora_testo))
+        blocchi = []
+        for chiave, _, _ in SEZIONI_RIEPILOGO:
+            if not per_sezione[chiave]:
+                continue
+            righe = [f"# {LEGENDA_BREVE[chiave]}"]
+            for giorno, _, nome, ora_testo in sorted(per_sezione[chiave]):
+                data_txt = f"{NOMI_GIORNI[giorno.weekday()][:3]} {giorno.strftime('%d/%m')}"
+                righe.append(f"{data_txt}  {ora_testo}  {nome}" if ora_testo else f"{data_txt}  {nome}")
+            blocchi.append("\n".join(righe))
+        return "\n\n".join(blocchi) + "\n" if blocchi else "# Scadenze\n"
+
+    @staticmethod
+    def _sezione_da_titolo(titolo):
+        """'# Visite da prenotare' → 'da_prenotare'; None se non riconosciuta."""
+        t = titolo.strip().lstrip("#").strip().lower()
+        if t.startswith("visite da") or t.startswith("da prenotare"):
+            return "da_prenotare"
+        if t.startswith("visit"):
+            return "visite"
+        if t.startswith("scad"):
+            return "scadenze"
+        if t.startswith("fest") or t.startswith("compl"):
+            return "feste"
+        if t.startswith("veic") or t.startswith("auto"):
+            return "veicoli"
+        return None
+
+    def _impegni_da_testo(self, testo, inizio, fine):
+        """Legge il testo modificato. Restituisce (impegni, errori).
+
+        impegni ha lo stesso formato di _impegni_nel_periodo; errori è una lista di stringhe.
+        """
+        impegni, errori = {}, []
+        sezione = "scadenze"  # righe prima di qualsiasi titolo
+        for n, riga in enumerate(testo.splitlines(), start=1):
+            if not riga.strip():
+                continue
+            if riga.strip().startswith("#"):
+                trovata = self._sezione_da_titolo(riga)
+                if trovata is None:
+                    errori.append(f"Riga {n}: sezione '{riga.strip()}' non riconosciuta "
+                                  f"(usa {', '.join('# ' + v for v in LEGENDA_BREVE.values())})")
+                else:
+                    sezione = trovata
+                continue
+
+            m = self._RIGA_IMPEGNO.match(riga)
+            if not m:
+                errori.append(f"Riga {n}: formato non valido → {riga.strip()}")
+                continue
+            data_txt, ora_da, ora_a, nome = m.groups()
+            giorno = interpreta_data(data_txt, inizio)
+            if giorno is None:
+                errori.append(f"Riga {n}: data non valida → {data_txt}")
+                continue
+            if not inizio <= giorno <= fine:
+                errori.append(f"Riga {n}: {giorno.strftime('%d/%m/%Y')} è fuori dal periodo "
+                              f"({inizio.strftime('%d/%m')} - {fine.strftime('%d/%m')})")
+                continue
+
+            orari = []
+            for valore in (ora_da, ora_a):
+                if valore is None:
+                    continue
+                try:
+                    orari.append(datetime.strptime(valore.replace(".", ":"), "%H:%M").strftime("%H:%M"))
+                except ValueError:
+                    orari.append(None)
+            if None in orari:
+                errori.append(f"Riga {n}: orario non valido → {riga.strip()}")
+                continue
+            if len(orari) == 2 and orari[1] <= orari[0]:
+                errori.append(f"Riga {n}: l'orario di fine è prima dell'inizio → {riga.strip()}")
+                continue
+
+            ora_testo = "-".join(orari)
+            voce = f"{ora_testo} {nome}" if ora_testo else nome
+            impegni.setdefault(giorno, []).append(
+                (orari[0] if orari else "00:00", voce, sezione, ora_testo, nome))
+        return impegni, errori
+
     def _barra_data_inizio(self, parent, stato, al_cambio):
         """Aggiunge a parent i controlli per scegliere il giorno di inizio (stato["inizio"])."""
         tk.Label(parent, text="Dal:", font=self.normal_font, bg="#f0f0f0").pack(side=tk.LEFT)
@@ -922,18 +1052,12 @@ class ScadenzeApp:
             al_cambio()
 
         def da_campo(*_):
-            testo = var_data.get().strip().replace("-", "/").replace(".", "/")
-            for formato in ("%d/%m/%Y", "%d/%m/%y", "%d/%m"):
-                try:
-                    nuova = datetime.strptime(testo, formato).date()
-                except ValueError:
-                    continue
-                if formato == "%d/%m":
-                    nuova = nuova.replace(year=datetime.now().year)
-                imposta(nuova)
+            nuova = interpreta_data(var_data.get(), datetime.now().date())
+            if nuova is None:
+                messagebox.showerror("Errore", "Data non valida. Usa il formato GG/MM/AAAA",
+                                     parent=parent.winfo_toplevel())
                 return
-            messagebox.showerror("Errore", "Data non valida. Usa il formato GG/MM/AAAA",
-                                 parent=parent.winfo_toplevel())
+            imposta(nuova)
 
         def sposta(giorni):
             return lambda: imposta(stato["inizio"] + timedelta(days=giorni))
@@ -970,12 +1094,23 @@ class ScadenzeApp:
         win.transient(self.root)
 
         var_vista = tk.StringVar(value=VISTA_IMMAGINE_PREDEFINITA)
-        stato = {"img": None, "inizio": datetime.now().date()}
+        stato = {"img": None, "inizio": datetime.now().date(),
+                 "impegni_modificati": None, "testo_modificato": None, "editor": None}
+
+        def periodo():
+            return stato["inizio"], stato["inizio"] + timedelta(days=GIORNI_RIEPILOGO - 1)
+
+        def data_cambiata():
+            # Le modifiche a mano valgono per un periodo: cambiando data si riparte dai dati
+            stato["impegni_modificati"] = stato["testo_modificato"] = None
+            if stato["editor"] is not None and stato["editor"]["win"].winfo_exists():
+                stato["editor"]["carica"]("Periodo cambiato: impegni ricaricati dai dati dell'app.")
+            genera()
 
         # Barra in alto: scelta della vista e pulsanti (sempre visibili)
         barra = tk.Frame(win, bg="#f0f0f0")
         barra.pack(fill=tk.X, padx=10, pady=(10, 0))
-        self._barra_data_inizio(barra, stato, lambda: genera())
+        self._barra_data_inizio(barra, stato, data_cambiata)
         tk.Label(barra, text="Vista:", font=self.normal_font, bg="#f0f0f0").pack(side=tk.LEFT)
         lbl_msg = tk.Label(win, text="", font=self.normal_font, bg="#f0f0f0", justify=tk.LEFT)
         lbl_msg.pack(anchor=tk.W, padx=10, pady=(6, 4))
@@ -991,10 +1126,12 @@ class ScadenzeApp:
                 msg, col = f"⚠️ {errore}", "#B71C1C"
             if stato.get("percorso"):
                 msg += f"\nSalvata anche in: {stato['percorso']}"
+            if stato["impegni_modificati"] is not None:
+                msg += "\n✏️ Immagine creata con le tue modifiche (i dati dell'app non cambiano)"
             lbl_msg.config(text=msg, fg=col)
 
         def genera(*_):
-            img = self._immagine_settimana(var_vista.get(), stato["inizio"])
+            img = self._immagine_settimana(var_vista.get(), stato["inizio"], stato["impegni_modificati"])
             stato["img"] = img
             # Salva anche un file, utile se si vuole trascinarlo o inviarlo in altro modo
             percorso = os.path.abspath(FILE_IMMAGINE_RIEPILOGO)
@@ -1030,12 +1167,102 @@ class ScadenzeApp:
             tk.Radiobutton(barra, text=testo, variable=var_vista, value=valore, command=genera,
                            font=self.normal_font, bg="#f0f0f0", indicatoron=False,
                            selectcolor="#C8E6C9", padx=8, pady=2).pack(side=tk.LEFT, padx=4)
-        tk.Button(barra, text="🖼️ Copia di nuovo", command=copia_e_mostra, bg="#25D366", fg="white",
+        def apri_editor():
+            ed = stato["editor"]
+            if ed is not None and ed["win"].winfo_exists():
+                ed["win"].lift()
+                ed["win"].focus_force()
+                return
+            stato["editor"] = self._finestra_modifica_impegni(win, stato, periodo, genera)
+
+        tk.Button(barra, text="✏️ Modifica impegni", command=apri_editor, bg="#FF9800", fg="white",
                   font=self.normal_font).pack(side=tk.LEFT, padx=(16, 4))
+        tk.Button(barra, text="🖼️ Copia di nuovo", command=copia_e_mostra, bg="#25D366", fg="white",
+                  font=self.normal_font).pack(side=tk.LEFT, padx=4)
         tk.Button(barra, text="Chiudi", command=win.destroy, bg="#9E9E9E", fg="white",
                   font=self.normal_font, width=10).pack(side=tk.LEFT, padx=4)
 
         genera()
+
+    def _finestra_modifica_impegni(self, padre, stato, periodo, genera):
+        """Finestra per modificare a mano, come un file di testo, gli impegni dell'immagine.
+
+        Le modifiche finiscono in stato["impegni_modificati"] e servono solo per l'immagine
+        da mandare su WhatsApp: i dati salvati dell'app non vengono toccati.
+        """
+        ed = tk.Toplevel(padre)
+        ed.title("Modifica impegni (solo per l'immagine WhatsApp)")
+        ed.geometry("680x640")
+        ed.configure(bg="#f0f0f0")
+        ed.transient(padre)
+
+        istruzioni = (
+            "Una riga per impegno:   GG/MM   ORA-ORA   Nome        (senza orario = tutto il giorno)\n"
+            "Le righe con # scelgono la sezione e il colore: "
+            + ", ".join("# " + v for v in LEGENDA_BREVE.values()) + "\n"
+            "Puoi correggere, cancellare o aggiungere righe. I dati dell'app NON vengono modificati."
+        )
+        tk.Label(ed, text=istruzioni, font=self.normal_font, bg="#f0f0f0", fg="#555555",
+                 justify=tk.LEFT, wraplength=640).pack(anchor=tk.W, padx=10, pady=(10, 5))
+
+        # Pulsanti ed esito vanno in basso PRIMA dell'area di testo, così restano sempre visibili
+        btn = tk.Frame(ed, bg="#f0f0f0")
+        btn.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
+        lbl_esito = tk.Label(ed, text="", font=self.normal_font, bg="#f0f0f0", justify=tk.LEFT,
+                             wraplength=640)
+        lbl_esito.pack(side=tk.BOTTOM, anchor=tk.W, padx=10, pady=(4, 0))
+
+        cornice = tk.Frame(ed, bg="#f0f0f0")
+        cornice.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        barra_scroll = ttk.Scrollbar(cornice, orient=tk.VERTICAL)
+        area = tk.Text(cornice, font=tkfont.Font(family="Consolas", size=11), wrap=tk.NONE,
+                       undo=True, height=14, yscrollcommand=barra_scroll.set)
+        barra_scroll.config(command=area.yview)
+        barra_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        area.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        def carica(messaggio=""):
+            """Mette nell'area il testo modificato, se c'è, altrimenti gli impegni dai dati."""
+            if stato["testo_modificato"] is not None:
+                testo = stato["testo_modificato"]
+            else:
+                inizio, fine = periodo()
+                testo = self._testo_da_impegni(self._impegni_nel_periodo(inizio, fine))
+            area.delete("1.0", tk.END)
+            area.insert("1.0", testo)
+            area.edit_reset()
+            lbl_esito.config(text=messaggio, fg="#555555")
+
+        def aggiorna(*_):
+            inizio, fine = periodo()
+            testo = area.get("1.0", "end-1c")
+            impegni, errori = self._impegni_da_testo(testo, inizio, fine)
+            stato["impegni_modificati"] = impegni
+            stato["testo_modificato"] = testo
+            genera()
+            if errori:
+                lbl_esito.config(fg="#B71C1C", text="⚠️ Immagine aggiornata, ma queste righe sono state ignorate:\n"
+                                 + "\n".join(errori[:8]) + ("\n…" if len(errori) > 8 else ""))
+            else:
+                lbl_esito.config(fg="#1B5E20", text="✅ Immagine aggiornata e copiata negli appunti.")
+            return "break"
+
+        def ripristina():
+            stato["impegni_modificati"] = stato["testo_modificato"] = None
+            carica("↩️ Ripristinati gli impegni dai dati dell'app.")
+            genera()
+
+        tk.Button(btn, text="🔄 Aggiorna immagine  (Ctrl+Invio)", command=aggiorna, bg="#25D366", fg="white",
+                  font=self.normal_font).pack(side=tk.LEFT, padx=4)
+        tk.Button(btn, text="↩️ Ripristina dai dati", command=ripristina, bg="#607D8B", fg="white",
+                  font=self.normal_font).pack(side=tk.LEFT, padx=4)
+        tk.Button(btn, text="Chiudi", command=ed.destroy, bg="#9E9E9E", fg="white",
+                  font=self.normal_font, width=10).pack(side=tk.LEFT, padx=4)
+        area.bind("<Control-Return>", aggiorna)
+
+        carica()
+        area.focus_set()
+        return {"win": ed, "carica": carica}
 
     def _copia_negli_appunti(self, testo):
         self.root.clipboard_clear()

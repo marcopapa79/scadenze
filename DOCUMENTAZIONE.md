@@ -253,6 +253,21 @@ Pulsante **📋 Copia settimana** nella scheda Scadenze Personali (`copia_settim
 
 Il numero di giorni è la costante `GIORNI_RIEPILOGO = 7` in `main.py`.
 
+### Scelta del periodo (barra "Dal:")
+
+Entrambe le finestre (testo e immagine) hanno in alto la barra creata da `_barra_data_inizio(parent, stato, al_cambio)`, che tiene il giorno di partenza in `stato["inizio"]` (di default oggi) e chiama `al_cambio()` a ogni modifica:
+
+| Controllo | Effetto |
+|---|---|
+| `<<` / `>>` | indietro / avanti di `GIORNI_RIEPILOGO` giorni (una settimana) |
+| `<` / `>` | indietro / avanti di un giorno |
+| campo data + **Vai** o Invio | accetta `GG/MM/AAAA`, `GG/MM/AA` o `GG/MM` (anno corrente); `-` e `.` valgono come `/`. Data non valida → messaggio d'errore |
+| **Oggi** | torna al giorno corrente |
+
+Il campo data usa `interpreta_data(testo, riferimento)` (funzione in cima a `main.py`): accetta `GG/MM/AAAA`, `GG/MM/AA` e `GG/MM`; **senza anno sceglie l'anno che rende la data più vicina a oggi** (a ottobre `5/1` = 5 gennaio dell'anno dopo; `29/02` = il 29 febbraio più vicino). Non usa `strptime` senza anno, che in Python 3.13 dà un avviso.
+
+`_testo_settimana(inizio)` e `_immagine_settimana(vista, inizio)` ricevono la data scelta. Le etichette "(oggi)" / "(domani)" del testo, il cerchio blu del calendario e "OGGI / domani / tra N giorni" dell'elenco restano riferiti alla **data reale di oggi**: se il periodo è tutto nel futuro o nel passato non compaiono, e per i giorni passati l'elenco mostra "ieri" / "N giorni fa" in grigio.
+
 ### Variante a immagine: 🖼️ Copia immagine
 
 `copia_settimana_immagine()` in `main.py` usa gli stessi impegni, ma li raggruppa per **sezione** (stessa regola della scheda, §5, più "Veicoli") e chiama il modulo `immagine_settimana.py`:
@@ -266,7 +281,26 @@ Il numero di giorni è la costante `GIORNI_RIEPILOGO = 7` in `main.py`.
 - **📅 Calendario** (predefinita, `VISTA_IMMAGINE_PREDEFINITA` in `main.py`): `crea_immagine_calendario()` disegna una settimana stile Google Calendar con 7 colonne a partire da oggi (oggi evidenziato con il cerchio blu) e le ore a sinistra, da quella del primo impegno a quella dell'ultimo (minimo 4 ore). Ogni impegno con orario è un blocco del colore della sua sezione, con nome e orario; quelli "tutto il giorno" (e le scadenze dei veicoli) stanno in una fascia in alto. Gli impegni sovrapposti vanno **a cascata** (chi inizia dopo sta sopra, spostato a destra) oppure **affiancati** se iniziano a meno di 30 minuti uno dall'altro; il testo resta nella parte visibile del blocco. In fondo una legenda con i colori usati (`LEGENDA_BREVE`).
 - **📋 Elenco**: `crea_immagine()`, un riquadro per sezione (descritta sopra).
 
-Sezioni, titoli e colori sono nella lista `SEZIONI_RIEPILOGO` in `main.py`. Se Pillow manca il pulsante mostra come installarla; `avvia_scadenze.bat` ora controlla `plyer` **e** `PIL` e, se manca uno dei due, installa `requirements.txt`.
+Sezioni, titoli e colori sono nella lista `SEZIONI_RIEPILOGO` in `main.py`.
+
+### ✏️ Modifica impegni (solo per l'immagine)
+
+Il pulsante **✏️ Modifica impegni** della finestra immagine apre `_finestra_modifica_impegni()`: gli impegni del periodo scritti come un file di testo (`_testo_da_impegni()`), una riga per impegno, divisi per sezione:
+
+```
+# Scadenze
+Gio 22/10  12:15-12:45  Trionfetti Aurora
+Ven 23/10  17:30-19:00  Catechismo
+
+# Feste e compleanni
+Sab 24/10  Compleanno nonna
+```
+
+- Formato riga: `[giorno settimana] GG/MM[/AAAA]  [HH:MM[-HH:MM]]  Nome`. Il giorno della settimana è facoltativo e ignorato; senza orario = tutto il giorno; `9.00` vale come `09:00`.
+- `# Visite`, `# Visite da prenotare`, `# Scadenze`, `# Feste e compleanni`, `# Veicoli` scelgono sezione e colore delle righe che seguono (basta l'inizio della parola, es. `# fest`). Righe prima di qualsiasi titolo → Scadenze.
+- **🔄 Aggiorna immagine** (o Ctrl+Invio): `_impegni_da_testo()` legge il testo e l'immagine viene rigenerata e ricopiata. Le righe non valide (formato, data, orario di fine prima dell'inizio, data fuori dal periodo, sezione sconosciuta) vengono ignorate e elencate con il numero di riga.
+- Le modifiche stanno solo in memoria (`stato["impegni_modificati"]`): valgono anche cambiando vista Calendario/Elenco e riaprendo l'editor, ma **non toccano i dati salvati**. Cambiando periodo con la barra "Dal:" vengono scartate e l'editor si ricarica dai dati; **↩️ Ripristina dai dati** le annulla.
+- La finestra del testo (📋 Copia settimana) era già modificabile direttamente. Se Pillow manca il pulsante mostra come installarla; `avvia_scadenze.bat` ora controlla `plyer` **e** `PIL` e, se manca uno dei due, installa `requirements.txt`.
 
 ---
 
