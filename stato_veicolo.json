@@ -146,13 +146,6 @@
             "ora_fine": "10:45",
             "ricorrenza": null
         },
-        "Trionfetti Aurora": {
-            "data": "2026-10-22",
-            "con_orario": true,
-            "ora_inizio": "12:15",
-            "ora_fine": "12:45",
-            "ricorrenza": null
-        },
         "Pallavolo Aurora": {
             "data": "2026-10-05",
             "con_orario": true,
@@ -191,13 +184,6 @@
             "ora_fine": null,
             "ricorrenza": null
         },
-        "GLO": {
-            "data": "2026-10-22",
-            "con_orario": true,
-            "ora_inizio": "15:30",
-            "ora_fine": "16:15",
-            "ricorrenza": null
-        },
         "Patronato bonus mamme": {
             "data": "2026-10-26",
             "con_orario": true,
@@ -213,6 +199,13 @@
             "ricorrenza": {
                 "attiva": false
             }
+        },
+        "Visita dentista Trionfetti Aurora": {
+            "data": "2026-11-13",
+            "con_orario": true,
+            "ora_inizio": "12:30",
+            "ora_fine": "12:55",
+            "ricorrenza": null
         }
     }
 }
