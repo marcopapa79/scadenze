@@ -1,6 +1,8 @@
+import glob
 import json
 import os
 import re
+import shutil
 from datetime import date, datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
@@ -32,7 +34,16 @@ except ImportError:
 SOGLIA_KM_PREAVVISO = 3500
 SOGLIA_GIORNI_PREAVVISO = 30
 
-DB_FILE = "stato_veicolo.json"
+# Tutti i file stanno nella cartella del programma, da qualunque cartella lo si avvii
+CARTELLA_PROGRAMMA = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(CARTELLA_PROGRAMMA, "stato_veicolo.json")
+# Copie di sicurezza giornaliere del file dati (una al giorno, tenute per GIORNI_BACKUP giorni)
+CARTELLA_BACKUP = os.path.join(CARTELLA_PROGRAMMA, "backup")
+GIORNI_BACKUP = 30
+
+# Colore di sfondo delle finestre (versione classica). Prima era "#f0f0f0" (grigio chiaro).
+# Esempi: "#dcdfe3" grigio un po' più scuro, "#cfd8dc" grigio-azzurro, "#b0bec5" grigio-azzurro scuro
+COLORE_SFONDO = "#f0f0f0"
 
 # Velocità di scorrimento della scheda Scadenze Personali
 SCROLL_PIXEL_PER_UNITA = 20   # pixel per unità di scroll
@@ -50,7 +61,7 @@ SEZIONI_RIEPILOGO = [
     ("feste", "Feste e Compleanni", "#E91E63"),
     ("veicoli", "Veicoli", "#F44336"),
 ]
-FILE_IMMAGINE_RIEPILOGO = "riepilogo_settimana.png"
+FILE_IMMAGINE_RIEPILOGO = os.path.join(CARTELLA_PROGRAMMA, "riepilogo_settimana.png")
 # Vista proposta all'apertura di "Copia immagine": "calendario" oppure "elenco"
 VISTA_IMMAGINE_PREDEFINITA = "calendario"
 # Nomi brevi delle sezioni per la legenda del calendario
@@ -105,9 +116,35 @@ def carica_dati():
         return json.load(f)
 
 
+def _backup_giornaliero():
+    """Prima del primo salvataggio del giorno copia il file dati in backup/ (tiene gli ultimi GIORNI_BACKUP)."""
+    if not os.path.exists(DB_FILE):
+        return
+    try:
+        os.makedirs(CARTELLA_BACKUP, exist_ok=True)
+        copia = os.path.join(CARTELLA_BACKUP, f"stato_veicolo_{date.today():%Y-%m-%d}.json")
+        if not os.path.exists(copia):
+            shutil.copy2(DB_FILE, copia)
+            vecchie = sorted(glob.glob(os.path.join(CARTELLA_BACKUP, "stato_veicolo_*.json")))
+            for file_vecchio in vecchie[:-GIORNI_BACKUP]:
+                os.remove(file_vecchio)
+    except OSError as e:
+        print(f"Copia di sicurezza non riuscita: {e}")
+
+
 def salva_dati(dati):
-    with open(DB_FILE, "w", encoding="utf-8") as f:
+    """Salva in modo sicuro: scrive prima un file temporaneo e poi lo sostituisce all'originale.
+
+    Se il PC si spegne o l'app si blocca a metà, stato_veicolo.json resta quello di prima
+    invece di rimanere vuoto o rovinato.
+    """
+    _backup_giornaliero()
+    temporaneo = DB_FILE + ".tmp"
+    with open(temporaneo, "w", encoding="utf-8") as f:
         json.dump(dati, f, indent=4)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(temporaneo, DB_FILE)
 
 
 def data_iso_a_italiana(data_iso):
@@ -163,16 +200,8 @@ def interpreta_data(testo, riferimento):
 class ScadenzeApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Gestione Scadenze - Veicoli e Personali")
-        self.root.geometry("1300x800")  # dimensione quando si "ripristina" la finestra
-        # Apre la finestra ingrandita (come il pulsante quadrato di Windows).
-        # Va fatto dopo che la finestra è comparsa, altrimenti Windows lo ignora.
-        self.root.after(50, self._ingrandisci_finestra)
-        self.root.configure(bg="#f0f0f0")
-        
-        self.title_font = tkfont.Font(family="Helvetica", size=14, weight="bold")
-        self.normal_font = tkfont.Font(family="Helvetica", size=10)
-        
+        self._prepara_finestra()
+
         self.dati_completi = carica_dati()
         
         # Migrazione vecchio formato se necessario
@@ -189,6 +218,30 @@ class ScadenzeApp:
         self.crea_interfaccia()
         self.aggiorna_visualizzazione()
     
+    def _prepara_finestra(self):
+        """Titolo, dimensioni, colori e caratteri della finestra principale."""
+        self.root.title("Gestione Scadenze - Veicoli e Personali")
+        self.root.geometry("1300x800")  # dimensione quando si "ripristina" la finestra
+        # Apre la finestra ingrandita (come il pulsante quadrato di Windows).
+        # Va fatto dopo che la finestra è comparsa, altrimenti Windows lo ignora.
+        self.root.after(50, self._ingrandisci_finestra)
+        self.root.configure(bg=COLORE_SFONDO)
+        stile = ttk.Style(self.root)
+        stile.configure("TNotebook", background=COLORE_SFONDO)
+
+        self.title_font = tkfont.Font(family="Helvetica", size=14, weight="bold")
+        self.normal_font = tkfont.Font(family="Helvetica", size=10)
+
+    # Piccoli aiuti per aggiornare i widget: la versione moderna (main_moderno.py)
+    # li ridefinisce, perché i suoi widget usano nomi di opzioni diversi.
+    def _imposta_stato(self, etichetta, testo, colore):
+        # Toni un po' più scuri dei colori base, leggibili anche su sfondi non bianchi
+        colori = {"red": "#C62828", "orange": "#E65100", "green": "#2E7D32", "gray": "#616161"}
+        etichetta.config(text=testo, fg=colori.get(colore, colore))
+
+    def _abilita_campo(self, campo, abilitato):
+        campo.config(state=tk.NORMAL if abilitato else tk.DISABLED)
+
     def _ingrandisci_finestra(self):
         """Porta la finestra a schermo intero (ingrandita), mantenendo la barra di Windows."""
         try:
@@ -557,8 +610,8 @@ class ScadenzeApp:
             orario_fine = data_obj.get('ora_fine') if data_obj.get('con_orario') else None
             ricorrenza = data_obj.get('ricorrenza')
         
-        # Determina il tipo e il nome dell'evento
-        if "Visita" in nome_scadenza:
+        # Determina il tipo e il nome dell'evento (stessa regola delle sezioni della scheda)
+        if self._sezione_personale(nome_scadenza, data_obj) in ("visite", "da_prenotare"):
             tipo_scadenza = "Visita"
             # Rimuovi "Visita " dal nome per l'export (il prefisso viene aggiunto da esporta_singola_scadenza)
             nome_evento = nome_scadenza.replace("Visita ", "", 1)
@@ -597,11 +650,11 @@ class ScadenzeApp:
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # Tab 1: Veicoli
-        tab_veicoli = tk.Frame(self.notebook, bg="#f0f0f0")
+        tab_veicoli = tk.Frame(self.notebook, bg=COLORE_SFONDO)
         self.notebook.add(tab_veicoli, text="🚗 Veicoli")
         
         # Tab 2: Scadenze Personali
-        tab_personali = tk.Frame(self.notebook, bg="#f0f0f0")
+        tab_personali = tk.Frame(self.notebook, bg=COLORE_SFONDO)
         self.notebook.add(tab_personali, text="📋 Scadenze Personali")
         
         # Crea contenuto tab veicoli
@@ -619,14 +672,14 @@ class ScadenzeApp:
     
     def crea_tab_veicoli(self, parent):
         """Crea il tab per la gestione veicoli"""
-        main_frame = tk.Frame(parent, bg="#f0f0f0")
+        main_frame = tk.Frame(parent, bg=COLORE_SFONDO)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # SELEZIONE VEICOLO
-        sel_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        sel_frame = tk.Frame(main_frame, bg=COLORE_SFONDO)
         sel_frame.pack(fill=tk.X, pady=(0, 10))
         
-        tk.Label(sel_frame, text="Seleziona Veicolo:", font=self.title_font, bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
+        tk.Label(sel_frame, text="Seleziona Veicolo:", font=self.title_font, bg=COLORE_SFONDO).pack(side=tk.LEFT, padx=5)
         
         self.veicolo_combo = ttk.Combobox(sel_frame, values=list(self.dati_completi["veicoli"].keys()), 
                                           font=self.normal_font, state="readonly", width=30)
@@ -652,15 +705,15 @@ class ScadenzeApp:
         
         # SEZIONE INFO VEICOLO
         info_frame = tk.LabelFrame(main_frame, text="Informazioni Veicolo", 
-                                    font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+                                    font=self.title_font, bg=COLORE_SFONDO, padx=10, pady=10)
         info_frame.pack(fill=tk.X, pady=(0, 10))
         
-        tk.Label(info_frame, text="Nome Veicolo:", font=self.normal_font, bg="#f0f0f0").grid(row=0, column=0, sticky=tk.W, padx=5)
+        tk.Label(info_frame, text="Nome Veicolo:", font=self.normal_font, bg=COLORE_SFONDO).grid(row=0, column=0, sticky=tk.W, padx=5)
         self.veicolo_entry = tk.Entry(info_frame, font=self.normal_font, width=20)
         self.veicolo_entry.grid(row=0, column=1, padx=5)
         self.veicolo_entry.insert(0, dati.get("nome_veicolo", "Veicolo"))
         
-        tk.Label(info_frame, text="Targa:", font=self.normal_font, bg="#f0f0f0").grid(row=0, column=2, sticky=tk.W, padx=5)
+        tk.Label(info_frame, text="Targa:", font=self.normal_font, bg=COLORE_SFONDO).grid(row=0, column=2, sticky=tk.W, padx=5)
         self.targa_entry = tk.Entry(info_frame, font=self.normal_font, width=15)
         self.targa_entry.grid(row=0, column=3, padx=5)
         self.targa_entry.insert(0, dati.get("targa", "XX000XX"))
@@ -670,10 +723,10 @@ class ScadenzeApp:
         
         # SEZIONE KM ATTUALI
         km_frame = tk.LabelFrame(main_frame, text="Chilometraggio Attuale", 
-                                  font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+                                  font=self.title_font, bg=COLORE_SFONDO, padx=10, pady=10)
         km_frame.pack(fill=tk.X, pady=(0, 10))
         
-        tk.Label(km_frame, text="Km Attuali:", font=self.normal_font, bg="#f0f0f0").grid(row=0, column=0, sticky=tk.W, padx=5)
+        tk.Label(km_frame, text="Km Attuali:", font=self.normal_font, bg=COLORE_SFONDO).grid(row=0, column=0, sticky=tk.W, padx=5)
         self.km_entry = tk.Entry(km_frame, font=self.normal_font, width=15)
         self.km_entry.grid(row=0, column=1, padx=5)
         self.km_entry.insert(0, str(dati["km_attuali"]))
@@ -682,31 +735,31 @@ class ScadenzeApp:
                  bg="#4CAF50", fg="white", font=self.normal_font).grid(row=0, column=2, padx=5)
         
         # LEGENDA TASTI
-        legenda_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        legenda_frame = tk.Frame(main_frame, bg=COLORE_SFONDO)
         legenda_frame.pack(fill=tk.X, pady=(10, 5))
         
         legenda_font = tkfont.Font(family="Helvetica", size=10, weight="bold")
-        tk.Label(legenda_frame, text="Legenda:", font=legenda_font, bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
+        tk.Label(legenda_frame, text="Legenda:", font=legenda_font, bg=COLORE_SFONDO).pack(side=tk.LEFT, padx=5)
         tk.Label(legenda_frame, text="✏️ Modifica", font=self.normal_font, bg="#FFF3E0", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
         tk.Label(legenda_frame, text="✕ Elimina", font=self.normal_font, bg="#FFEBEE", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
         tk.Label(legenda_frame, text="📅 Esporta", font=self.normal_font, bg="#E3F2FD", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
         
         # SEZIONE SCADENZE TEMPORALI
         temp_frame = tk.LabelFrame(main_frame, text="Scadenze Temporali", 
-                                    font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+                                    font=self.title_font, bg=COLORE_SFONDO, padx=10, pady=10)
         temp_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        self.temp_container = tk.Frame(temp_frame, bg="#f0f0f0")
+        self.temp_container = tk.Frame(temp_frame, bg=COLORE_SFONDO)
         self.temp_container.pack(fill=tk.BOTH, expand=True)
         
         self.scadenze_temp_widgets = {}
         row = 0
         for voce, data in sorted(dati["scadenze_fisse"].items(), key=lambda x: x[1]):
-            tk.Label(self.temp_container, text=f"{voce}:", font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
+            tk.Label(self.temp_container, text=f"{voce}:", font=self.normal_font, bg=COLORE_SFONDO).grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
             entry = tk.Entry(self.temp_container, font=self.normal_font, width=15)
             entry.grid(row=row, column=1, padx=5)
             entry.insert(0, data_iso_a_italiana(data))
-            label_stato = tk.Label(self.temp_container, text="", font=self.normal_font, bg="#f0f0f0", width=30)
+            label_stato = tk.Label(self.temp_container, text="", font=self.normal_font, bg=COLORE_SFONDO, width=30)
             label_stato.grid(row=row, column=2, padx=5)
             
             # Pulsante modifica
@@ -730,7 +783,7 @@ class ScadenzeApp:
             self.scadenze_temp_widgets[voce] = {"entry": entry, "label": label_stato, "btn_modifica": btn_modifica, "btn_elimina": btn_elimina, "btn_calendar": btn_calendar}
             row += 1
         
-        btn_frame_temp = tk.Frame(temp_frame, bg="#f0f0f0")
+        btn_frame_temp = tk.Frame(temp_frame, bg=COLORE_SFONDO)
         btn_frame_temp.pack(fill=tk.X, pady=5)
         
         tk.Button(btn_frame_temp, text="+ Nuova Scadenza", command=self.aggiungi_scadenza_temp,
@@ -740,23 +793,23 @@ class ScadenzeApp:
         
         # SEZIONE SCADENZE CHILOMETRICHE
         km_manu_frame = tk.LabelFrame(main_frame, text="Manutenzione Chilometrica", 
-                                       font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+                                       font=self.title_font, bg=COLORE_SFONDO, padx=10, pady=10)
         km_manu_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.km_container = tk.Frame(km_manu_frame, bg="#f0f0f0")
+        self.km_container = tk.Frame(km_manu_frame, bg=COLORE_SFONDO)
         self.km_container.pack(fill=tk.BOTH, expand=True)
         
         self.scadenze_km_widgets = {}
         row = 0
-        tk.Label(self.km_container, text="Componente", font=self.title_font, bg="#f0f0f0").grid(row=row, column=0, pady=5)
-        tk.Label(self.km_container, text="Ultimo Km", font=self.title_font, bg="#f0f0f0").grid(row=row, column=1, pady=5)
-        tk.Label(self.km_container, text="Prossimo Km", font=self.title_font, bg="#f0f0f0").grid(row=row, column=2, pady=5)
-        tk.Label(self.km_container, text="Km Residui", font=self.title_font, bg="#f0f0f0").grid(row=row, column=3, pady=5)
-        tk.Label(self.km_container, text="Azioni", font=self.title_font, bg="#f0f0f0").grid(row=row, column=4, pady=5)
+        tk.Label(self.km_container, text="Componente", font=self.title_font, bg=COLORE_SFONDO).grid(row=row, column=0, pady=5)
+        tk.Label(self.km_container, text="Ultimo Km", font=self.title_font, bg=COLORE_SFONDO).grid(row=row, column=1, pady=5)
+        tk.Label(self.km_container, text="Prossimo Km", font=self.title_font, bg=COLORE_SFONDO).grid(row=row, column=2, pady=5)
+        tk.Label(self.km_container, text="Km Residui", font=self.title_font, bg=COLORE_SFONDO).grid(row=row, column=3, pady=5)
+        tk.Label(self.km_container, text="Azioni", font=self.title_font, bg=COLORE_SFONDO).grid(row=row, column=4, pady=5)
         row += 1
         
         for voce, info in sorted(dati["scadenze_chilometriche"].items(), key=lambda x: x[1]["prossimo_km"] - dati["km_attuali"]):
-            tk.Label(self.km_container, text=f"{voce}:", font=self.normal_font, bg="#f0f0f0").grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
+            tk.Label(self.km_container, text=f"{voce}:", font=self.normal_font, bg=COLORE_SFONDO).grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
             
             ultimo_entry = tk.Entry(self.km_container, font=self.normal_font, width=12)
             ultimo_entry.grid(row=row, column=1, padx=5)
@@ -766,11 +819,11 @@ class ScadenzeApp:
             prossimo_entry.grid(row=row, column=2, padx=5)
             prossimo_entry.insert(0, str(info["prossimo_km"]))
             
-            label_residui = tk.Label(self.km_container, text="", font=self.normal_font, bg="#f0f0f0", width=25)
+            label_residui = tk.Label(self.km_container, text="", font=self.normal_font, bg=COLORE_SFONDO, width=25)
             label_residui.grid(row=row, column=3, padx=5)
             
             # Frame per pulsanti modifica/elimina/esporta
-            btn_frame_azioni = tk.Frame(self.km_container, bg="#f0f0f0")
+            btn_frame_azioni = tk.Frame(self.km_container, bg=COLORE_SFONDO)
             btn_frame_azioni.grid(row=row, column=4, padx=5)
             
             # Pulsante modifica
@@ -802,7 +855,7 @@ class ScadenzeApp:
             }
             row += 1
         
-        btn_frame_km = tk.Frame(km_manu_frame, bg="#f0f0f0")
+        btn_frame_km = tk.Frame(km_manu_frame, bg=COLORE_SFONDO)
         btn_frame_km.pack(fill=tk.X, pady=5)
         
         tk.Button(btn_frame_km, text="+ Nuova Scadenza Km", command=self.aggiungi_scadenza_km,
@@ -814,9 +867,9 @@ class ScadenzeApp:
         """Abilita/disabilita i campi orario quando cambia il checkbox"""
         if voce in self.scadenze_personali_widgets:
             widgets = self.scadenze_personali_widgets[voce]
-            stato = tk.DISABLED if widgets["var_tutto_giorno"].get() else tk.NORMAL
-            widgets["entry_inizio"].config(state=stato)
-            widgets["entry_fine"].config(state=stato)
+            abilitato = not widgets["var_tutto_giorno"].get()
+            self._abilita_campo(widgets["entry_inizio"], abilitato)
+            self._abilita_campo(widgets["entry_fine"], abilitato)
 
     def _is_visita_personale(self, voce, data_obj=None):
         """Determina se una voce personale appartiene alle visite mediche."""
@@ -834,6 +887,19 @@ class ScadenzeApp:
         """Determina se una voce personale appartiene a feste o compleanni."""
         voce_lower = voce.lower()
         return "compleanno" in voce_lower or "festa" in voce_lower
+
+    def _sezione_personale(self, voce, data_obj=None):
+        """Sezione di una scadenza personale: 'visite', 'da_prenotare', 'feste' o 'scadenze'.
+
+        Conta prima la categoria salvata (visita / festa), poi le parole nel nome.
+        Tra visite prenotate e da prenotare decide il nome ("... da prenotare").
+        """
+        categoria = data_obj.get("categoria") if isinstance(data_obj, dict) else None
+        if categoria in ("visita_prenotata", "visita_da_prenotare") or self._is_visita_personale(voce):
+            return "da_prenotare" if self._is_visita_da_prenotare(voce) else "visite"
+        if categoria == "festa_compleanno" or self._is_festa_compleanno(voce):
+            return "feste"
+        return "scadenze"
     
     def _impegni_nel_periodo(self, inizio, fine):
         """Raccoglie tutti gli impegni tra inizio e fine (inclusi).
@@ -862,14 +928,7 @@ class ScadenzeApp:
             riga = f"{ora_testo} {nome}" if ora_testo else nome
 
             # Stessa suddivisione della scheda Scadenze Personali
-            if self._is_visita_personale(nome) and self._is_visita_da_prenotare(nome):
-                sezione = "da_prenotare"
-            elif self._is_visita_personale(nome, data_obj):
-                sezione = "visite"
-            elif self._is_festa_compleanno(nome):
-                sezione = "feste"
-            else:
-                sezione = "scadenze"
+            sezione = self._sezione_personale(nome, data_obj)
 
             for giorno in occorrenze_nel_periodo(data_iniziale, data_obj.get("ricorrenza"), inizio, fine):
                 # Le voci senza orario vanno in cima alla giornata
@@ -1043,7 +1102,7 @@ class ScadenzeApp:
 
     def _barra_data_inizio(self, parent, stato, al_cambio):
         """Aggiunge a parent i controlli per scegliere il giorno di inizio (stato["inizio"])."""
-        tk.Label(parent, text="Dal:", font=self.normal_font, bg="#f0f0f0").pack(side=tk.LEFT)
+        tk.Label(parent, text="Dal:", font=self.normal_font, bg=COLORE_SFONDO).pack(side=tk.LEFT)
         var_data = tk.StringVar(value=stato["inizio"].strftime("%d/%m/%Y"))
 
         def imposta(nuova):
@@ -1090,7 +1149,7 @@ class ScadenzeApp:
 
         win = tk.Toplevel(self.root)
         win.title("Impegni della settimana - immagine")
-        win.configure(bg="#f0f0f0")
+        win.configure(bg=COLORE_SFONDO)
         win.transient(self.root)
 
         var_vista = tk.StringVar(value=VISTA_IMMAGINE_PREDEFINITA)
@@ -1108,13 +1167,13 @@ class ScadenzeApp:
             genera()
 
         # Barra in alto: scelta della vista e pulsanti (sempre visibili)
-        barra = tk.Frame(win, bg="#f0f0f0")
+        barra = tk.Frame(win, bg=COLORE_SFONDO)
         barra.pack(fill=tk.X, padx=10, pady=(10, 0))
         self._barra_data_inizio(barra, stato, data_cambiata)
-        tk.Label(barra, text="Vista:", font=self.normal_font, bg="#f0f0f0").pack(side=tk.LEFT)
-        lbl_msg = tk.Label(win, text="", font=self.normal_font, bg="#f0f0f0", justify=tk.LEFT)
+        tk.Label(barra, text="Vista:", font=self.normal_font, bg=COLORE_SFONDO).pack(side=tk.LEFT)
+        lbl_msg = tk.Label(win, text="", font=self.normal_font, bg=COLORE_SFONDO, justify=tk.LEFT)
         lbl_msg.pack(anchor=tk.W, padx=10, pady=(6, 4))
-        area = tk.Label(win, bg="#f0f0f0")
+        area = tk.Label(win, bg=COLORE_SFONDO)
         area.pack(padx=10, pady=(0, 10))
 
         def copia_e_mostra():
@@ -1165,7 +1224,7 @@ class ScadenzeApp:
 
         for valore, testo in (("calendario", "📅 Calendario"), ("elenco", "📋 Elenco")):
             tk.Radiobutton(barra, text=testo, variable=var_vista, value=valore, command=genera,
-                           font=self.normal_font, bg="#f0f0f0", indicatoron=False,
+                           font=self.normal_font, bg=COLORE_SFONDO, indicatoron=False,
                            selectcolor="#C8E6C9", padx=8, pady=2).pack(side=tk.LEFT, padx=4)
         def apri_editor():
             ed = stato["editor"]
@@ -1193,7 +1252,7 @@ class ScadenzeApp:
         ed = tk.Toplevel(padre)
         ed.title("Modifica impegni (solo per l'immagine WhatsApp)")
         ed.geometry("680x640")
-        ed.configure(bg="#f0f0f0")
+        ed.configure(bg=COLORE_SFONDO)
         ed.transient(padre)
 
         istruzioni = (
@@ -1202,17 +1261,17 @@ class ScadenzeApp:
             + ", ".join("# " + v for v in LEGENDA_BREVE.values()) + "\n"
             "Puoi correggere, cancellare o aggiungere righe. I dati dell'app NON vengono modificati."
         )
-        tk.Label(ed, text=istruzioni, font=self.normal_font, bg="#f0f0f0", fg="#555555",
+        tk.Label(ed, text=istruzioni, font=self.normal_font, bg=COLORE_SFONDO, fg="#555555",
                  justify=tk.LEFT, wraplength=640).pack(anchor=tk.W, padx=10, pady=(10, 5))
 
         # Pulsanti ed esito vanno in basso PRIMA dell'area di testo, così restano sempre visibili
-        btn = tk.Frame(ed, bg="#f0f0f0")
+        btn = tk.Frame(ed, bg=COLORE_SFONDO)
         btn.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
-        lbl_esito = tk.Label(ed, text="", font=self.normal_font, bg="#f0f0f0", justify=tk.LEFT,
+        lbl_esito = tk.Label(ed, text="", font=self.normal_font, bg=COLORE_SFONDO, justify=tk.LEFT,
                              wraplength=640)
         lbl_esito.pack(side=tk.BOTTOM, anchor=tk.W, padx=10, pady=(4, 0))
 
-        cornice = tk.Frame(ed, bg="#f0f0f0")
+        cornice = tk.Frame(ed, bg=COLORE_SFONDO)
         cornice.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         barra_scroll = ttk.Scrollbar(cornice, orient=tk.VERTICAL)
         area = tk.Text(cornice, font=tkfont.Font(family="Consolas", size=11), wrap=tk.NONE,
@@ -1277,7 +1336,7 @@ class ScadenzeApp:
         win = tk.Toplevel(self.root)
         win.title("Impegni della settimana")
         win.geometry("560x600")
-        win.configure(bg="#f0f0f0")
+        win.configure(bg=COLORE_SFONDO)
         win.transient(self.root)
 
         periodo = {"inizio": datetime.now().date()}
@@ -1289,12 +1348,12 @@ class ScadenzeApp:
             self._copia_negli_appunti(nuovo)
             stato.config(text="✅ Copiato negli appunti: incollalo su WhatsApp con Ctrl+V")
 
-        barra_data = tk.Frame(win, bg="#f0f0f0")
+        barra_data = tk.Frame(win, bg=COLORE_SFONDO)
         barra_data.pack(fill=tk.X, padx=10, pady=(10, 0))
         self._barra_data_inizio(barra_data, periodo, rigenera)
 
         stato = tk.Label(win, text="✅ Copiato negli appunti: incollalo su WhatsApp con Ctrl+V",
-                         font=self.normal_font, bg="#f0f0f0", fg="#1B5E20")
+                         font=self.normal_font, bg=COLORE_SFONDO, fg="#1B5E20")
         stato.pack(anchor=tk.W, padx=10, pady=(10, 5))
 
         area = tk.Text(win, font=self.normal_font, wrap=tk.WORD, height=20)
@@ -1305,7 +1364,7 @@ class ScadenzeApp:
             self._copia_negli_appunti(area.get("1.0", "end-1c"))
             stato.config(text="✅ Testo modificato copiato negli appunti")
 
-        btn_frame = tk.Frame(win, bg="#f0f0f0")
+        btn_frame = tk.Frame(win, bg=COLORE_SFONDO)
         btn_frame.pack(fill=tk.X, padx=10, pady=10)
         tk.Button(btn_frame, text="📋 Copia di nuovo", command=ricopia, bg="#25D366", fg="white",
                   font=self.normal_font).pack(side=tk.LEFT, padx=5)
@@ -1333,11 +1392,11 @@ class ScadenzeApp:
 
     def crea_tab_personali(self, parent):
         """Crea il tab per le scadenze personali, diviso in visite e altre scadenze."""
-        scroll_frame = tk.Frame(parent, bg="#f0f0f0")
+        scroll_frame = tk.Frame(parent, bg=COLORE_SFONDO)
         scroll_frame.pack(fill=tk.BOTH, expand=True)
 
         # yscrollincrement = pixel per "unità" di scroll (frecce della barra e rotellina)
-        canvas = tk.Canvas(scroll_frame, bg="#f0f0f0", highlightthickness=0,
+        canvas = tk.Canvas(scroll_frame, bg=COLORE_SFONDO, highlightthickness=0,
                            yscrollincrement=SCROLL_PIXEL_PER_UNITA)
         self.canvas_personali = canvas
         scrollbar = ttk.Scrollbar(scroll_frame, orient=tk.VERTICAL, command=canvas.yview)
@@ -1345,7 +1404,7 @@ class ScadenzeApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        main_frame = tk.Frame(canvas, bg="#f0f0f0")
+        main_frame = tk.Frame(canvas, bg=COLORE_SFONDO)
         canvas_window = canvas.create_window((0, 0), window=main_frame, anchor="nw")
 
         def aggiorna_area_scroll(event=None):
@@ -1361,11 +1420,11 @@ class ScadenzeApp:
         self.root.bind_all("<MouseWheel>", self._scroll_rotellina)
 
         # Titolo e pulsante notifiche
-        header_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        header_frame = tk.Frame(main_frame, bg=COLORE_SFONDO)
         header_frame.pack(fill=tk.X, pady=(0, 10))
         
         tk.Label(header_frame, text="Gestione Scadenze Personali", 
-                font=self.title_font, bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
+                font=self.title_font, bg=COLORE_SFONDO).pack(side=tk.LEFT, padx=5)
         
         if GOOGLE_CALENDAR_DISPONIBILE:
             tk.Button(header_frame, text="📅 Esporta su Calendar", command=self.esporta_personali_su_calendar, 
@@ -1387,45 +1446,45 @@ class ScadenzeApp:
         self.scadenze_personali_widgets = {}
         
         # LEGENDA TASTI
-        legenda_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        legenda_frame = tk.Frame(main_frame, bg=COLORE_SFONDO)
         legenda_frame.pack(fill=tk.X, pady=(0, 10))
         
         legenda_font = tkfont.Font(family="Helvetica", size=10, weight="bold")
-        tk.Label(legenda_frame, text="Legenda:", font=legenda_font, bg="#f0f0f0").pack(side=tk.LEFT, padx=5)
+        tk.Label(legenda_frame, text="Legenda:", font=legenda_font, bg=COLORE_SFONDO).pack(side=tk.LEFT, padx=5)
         tk.Label(legenda_frame, text="✏️ Modifica", font=self.normal_font, bg="#FFF3E0", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
         tk.Label(legenda_frame, text="✕ Cancella", font=self.normal_font, bg="#FFEBEE", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
         tk.Label(legenda_frame, text="📅 Esporta", font=self.normal_font, bg="#E3F2FD", padx=8, pady=2).pack(side=tk.LEFT, padx=2)
         
         # SEZIONE VISITE PRENOTATE
         visite_frame = tk.LabelFrame(main_frame, text="Visite Mediche prenotate", 
-                                     font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+                                     font=self.title_font, bg=COLORE_SFONDO, padx=10, pady=10)
         visite_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
         
-        visite_container = tk.Frame(visite_frame, bg="#f0f0f0")
+        visite_container = tk.Frame(visite_frame, bg=COLORE_SFONDO)
         visite_container.pack(fill=tk.BOTH, expand=True)
 
         # SEZIONE VISITE DA PRENOTARE
         visite_prenotare_frame = tk.LabelFrame(main_frame, text="Visite da prenotare entro il", 
-                               font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+                               font=self.title_font, bg=COLORE_SFONDO, padx=10, pady=10)
         visite_prenotare_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
 
-        visite_prenotare_container = tk.Frame(visite_prenotare_frame, bg="#f0f0f0")
+        visite_prenotare_container = tk.Frame(visite_prenotare_frame, bg=COLORE_SFONDO)
         visite_prenotare_container.pack(fill=tk.BOTH, expand=True)
         
         # SEZIONE SCADENZE
         scad_frame = tk.LabelFrame(main_frame, text="Scadenze (Casa, ISEE, IMU, Documenti, Altro)", 
-                                    font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+                                    font=self.title_font, bg=COLORE_SFONDO, padx=10, pady=10)
         scad_frame.pack(fill=tk.BOTH, expand=False, pady=(0, 10))
         
-        scad_container = tk.Frame(scad_frame, bg="#f0f0f0")
+        scad_container = tk.Frame(scad_frame, bg=COLORE_SFONDO)
         scad_container.pack(fill=tk.BOTH, expand=True)
 
         # SEZIONE FESTE E COMPLEANNI
         feste_frame = tk.LabelFrame(main_frame, text="Feste e Compleanni",
-                        font=self.title_font, bg="#f0f0f0", padx=10, pady=10)
+                        font=self.title_font, bg=COLORE_SFONDO, padx=10, pady=10)
         feste_frame.pack(fill=tk.BOTH, expand=True)
 
-        feste_container = tk.Frame(feste_frame, bg="#f0f0f0")
+        feste_container = tk.Frame(feste_frame, bg=COLORE_SFONDO)
         feste_container.pack(fill=tk.BOTH, expand=True)
         
         # Separazione visite prenotate, visite da prenotare e altre scadenze
@@ -1434,15 +1493,10 @@ class ScadenzeApp:
         scadenze_dict = {}
         feste_dict = {}
         
+        per_sezione = {"visite": visite_dict, "da_prenotare": visite_da_prenotare_dict,
+                       "feste": feste_dict, "scadenze": scadenze_dict}
         for voce, data_obj in self.dati_completi.get("scadenze_personali", {}).items():
-            if self._is_visita_personale(voce) and self._is_visita_da_prenotare(voce):
-                visite_da_prenotare_dict[voce] = data_obj
-            elif self._is_visita_personale(voce, data_obj):
-                visite_dict[voce] = data_obj
-            elif self._is_festa_compleanno(voce):
-                feste_dict[voce] = data_obj
-            else:
-                scadenze_dict[voce] = data_obj
+            per_sezione[self._sezione_personale(voce, data_obj)][voce] = data_obj
         
         # Rendering VISITE
         row_visite = 0
@@ -1453,7 +1507,7 @@ class ScadenzeApp:
         # Se non ci sono visite, mostra messaggio
         if row_visite == 0:
             tk.Label(visite_container, text="Nessuna visita prenotata", 
-                    font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
+                    font=self.normal_font, bg=COLORE_SFONDO, fg="gray").pack(pady=10)
 
         # Rendering VISITE DA PRENOTARE
         row_visite_prenotare = 0
@@ -1463,7 +1517,7 @@ class ScadenzeApp:
 
         if row_visite_prenotare == 0:
             tk.Label(visite_prenotare_container, text="Nessuna visita da prenotare", 
-                    font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
+                    font=self.normal_font, bg=COLORE_SFONDO, fg="gray").pack(pady=10)
         
         # Rendering SCADENZE
         row_scad = 0
@@ -1474,7 +1528,7 @@ class ScadenzeApp:
         # Se non ci sono scadenze, mostra messaggio
         if row_scad == 0:
             tk.Label(scad_container, text="Nessuna scadenza programmata", 
-                    font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
+                    font=self.normal_font, bg=COLORE_SFONDO, fg="gray").pack(pady=10)
 
         # Rendering FESTE E COMPLEANNI
         row_feste = 0
@@ -1484,10 +1538,10 @@ class ScadenzeApp:
 
         if row_feste == 0:
             tk.Label(feste_container, text="Nessuna festa o compleanno programmato",
-                    font=self.normal_font, bg="#f0f0f0", fg="gray").pack(pady=10)
+                    font=self.normal_font, bg=COLORE_SFONDO, fg="gray").pack(pady=10)
         
         # Pulsanti di azione
-        btn_frame = tk.Frame(main_frame, bg="#f0f0f0")
+        btn_frame = tk.Frame(main_frame, bg=COLORE_SFONDO)
         btn_frame.pack(fill=tk.X, pady=5)
         
         tk.Button(btn_frame, text="+ Nuova Scadenza",
@@ -1540,7 +1594,7 @@ class ScadenzeApp:
         win = tk.Toplevel(self.root)
         win.title(f"Ricorrenza - {nome_scadenza}")
         win.geometry("380x360")
-        win.configure(bg="#f0f0f0")
+        win.configure(bg=COLORE_SFONDO)
         win.transient(self.root)
         win.grab_set()
 
@@ -1562,29 +1616,29 @@ class ScadenzeApp:
         fino_al_default = data_iso_a_italiana(ricorrenza_attuale.get("fino_al")) if ricorrenza_attuale.get("fino_al") else ""
 
         tk.Checkbutton(win, text="Si ripete", variable=var_attiva, font=self.normal_font,
-                       bg="#f0f0f0").pack(anchor=tk.W, padx=10, pady=(10, 5))
+                       bg=COLORE_SFONDO).pack(anchor=tk.W, padx=10, pady=(10, 5))
 
-        freq_frame = tk.Frame(win, bg="#f0f0f0")
+        freq_frame = tk.Frame(win, bg=COLORE_SFONDO)
         freq_frame.pack(fill=tk.X, padx=10, pady=5)
-        tk.Label(freq_frame, text="Ripeti ogni:", bg="#f0f0f0", font=self.normal_font).pack(side=tk.LEFT)
+        tk.Label(freq_frame, text="Ripeti ogni:", bg=COLORE_SFONDO, font=self.normal_font).pack(side=tk.LEFT)
         spin_intervallo = tk.Spinbox(freq_frame, from_=1, to=30, width=4, textvariable=var_intervallo)
         spin_intervallo.pack(side=tk.LEFT, padx=5)
         tk.Radiobutton(freq_frame, text="Settimana/e", variable=var_freq, value="WEEKLY",
-                       bg="#f0f0f0", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+                       bg=COLORE_SFONDO, font=self.normal_font).pack(side=tk.LEFT, padx=5)
         tk.Radiobutton(freq_frame, text="Mese/i", variable=var_freq, value="MONTHLY",
-                       bg="#f0f0f0", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+                       bg=COLORE_SFONDO, font=self.normal_font).pack(side=tk.LEFT, padx=5)
 
         giorni_frame = tk.LabelFrame(win, text="Giorni della settimana (solo per ricorrenza settimanale)",
-                                     bg="#f0f0f0", font=self.normal_font, padx=5, pady=5)
+                                     bg=COLORE_SFONDO, font=self.normal_font, padx=5, pady=5)
         giorni_frame.pack(fill=tk.X, padx=10, pady=10)
         for i, (etichetta, codice) in enumerate(GIORNI_SETTIMANA):
             tk.Checkbutton(giorni_frame, text=etichetta, variable=vars_giorni[codice],
-                          bg="#f0f0f0", font=self.normal_font).grid(row=0, column=i, padx=2)
+                          bg=COLORE_SFONDO, font=self.normal_font).grid(row=0, column=i, padx=2)
 
-        fino_frame = tk.Frame(win, bg="#f0f0f0")
+        fino_frame = tk.Frame(win, bg=COLORE_SFONDO)
         fino_frame.pack(fill=tk.X, padx=10, pady=5)
         tk.Label(fino_frame, text="Fino al (GG-MM-AAAA, vuoto = senza fine):",
-                bg="#f0f0f0", font=self.normal_font).pack(anchor=tk.W)
+                bg=COLORE_SFONDO, font=self.normal_font).pack(anchor=tk.W)
         entry_fino_al = tk.Entry(fino_frame, font=self.normal_font, width=15)
         entry_fino_al.pack(anchor=tk.W, pady=3)
         entry_fino_al.insert(0, fino_al_default)
@@ -1631,7 +1685,7 @@ class ScadenzeApp:
         def annulla():
             win.destroy()
 
-        btn_frame = tk.Frame(win, bg="#f0f0f0")
+        btn_frame = tk.Frame(win, bg=COLORE_SFONDO)
         btn_frame.pack(fill=tk.X, padx=10, pady=15)
         tk.Button(btn_frame, text="OK", command=conferma, bg="#4CAF50", fg="white",
                  font=self.normal_font, width=10).pack(side=tk.LEFT, padx=5)
@@ -1648,7 +1702,7 @@ class ScadenzeApp:
             data_obj = {'data': data_obj, 'con_orario': False, 'ora_inizio': None, 'ora_fine': None}
         
         tk.Label(container, text=f"{voce}:", 
-            font=self.normal_font, bg="#f0f0f0", width=42, anchor=tk.W).grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
+            font=self.normal_font, bg=COLORE_SFONDO, width=42, anchor=tk.W).grid(row=row, column=0, sticky=tk.W, pady=5, padx=2)
         
         entry = tk.Entry(container, font=self.normal_font, width=15)
         entry.grid(row=row, column=1, padx=5)
@@ -1657,7 +1711,7 @@ class ScadenzeApp:
         # Checkbox per indicare un evento senza orario
         var_tutto_giorno = tk.BooleanVar(value=not data_obj.get('con_orario', False))
         chk_orario = tk.Checkbutton(container, text="Tutto il giorno", variable=var_tutto_giorno,
-                       bg="#f0f0f0", font=self.normal_font,
+                       bg=COLORE_SFONDO, font=self.normal_font,
                                    command=lambda v=voce: self.toggle_orario_personale(v))
         chk_orario.grid(row=row, column=2, padx=2)
         
@@ -1673,7 +1727,7 @@ class ScadenzeApp:
         entry_fine.config(state=tk.DISABLED if var_tutto_giorno.get() else tk.NORMAL)
         
         label_stato = tk.Label(container, text="", 
-                              font=self.normal_font, bg="#f0f0f0", width=35)
+                              font=self.normal_font, bg=COLORE_SFONDO, width=35)
         label_stato.grid(row=row, column=5, padx=10, sticky=tk.W)
         
         # Pulsante modifica nome
@@ -1795,19 +1849,23 @@ class ScadenzeApp:
             messagebox.showerror("Errore", "Inserisci un numero valido per i km")
     
     def salva_scadenze_temp(self):
-        try:
-            dati = self.get_dati_veicolo()
-            for voce, widgets in self.scadenze_temp_widgets.items():
-                data_str = widgets["entry"].get()
-                # Converte da formato italiano (GG-MM-AAAA) a ISO (YYYY-MM-DD)
-                data_iso = data_italiana_a_iso(data_str)
+        """Salva le date del veicolo; se una è sbagliata non cambia nulla e dice quale."""
+        dati = self.get_dati_veicolo()
+        nuove = {}
+        for voce, widgets in self.scadenze_temp_widgets.items():
+            # Converte da formato italiano (GG-MM-AAAA) a ISO (YYYY-MM-DD)
+            data_iso = data_italiana_a_iso(widgets["entry"].get().strip())
+            try:
                 datetime.strptime(data_iso, "%Y-%m-%d")
-                dati["scadenze_fisse"][voce] = data_iso  # Salva in formato ISO
-            salva_dati(self.dati_completi)
-            self.aggiorna_visualizzazione()
-            messagebox.showinfo("Successo", "Scadenze temporali salvate!")
-        except ValueError:
-            messagebox.showerror("Errore", "Usa il formato GG-MM-AAAA per le date")
+            except ValueError:
+                messagebox.showerror("Errore", f"Data non valida in '{voce}'!\n\nUsa il formato GG-MM-AAAA.\n"
+                                     "Nessuna modifica è stata salvata.")
+                return
+            nuove[voce] = data_iso  # Salva in formato ISO
+        dati["scadenze_fisse"].update(nuove)
+        salva_dati(self.dati_completi)
+        self.aggiorna_visualizzazione()
+        messagebox.showinfo("Successo", "Scadenze temporali salvate!")
     
     def salva_scadenze_km(self):
         try:
@@ -1972,6 +2030,11 @@ class ScadenzeApp:
             "ora_inizio": None,
             "ora_fine": None
         }
+        # La categoria tiene la voce nella sua sezione anche se il nome non contiene "visita"/"compleanno"
+        categoria = {"visita_prenotata": "visita_prenotata", "visita_da_prenotare": "visita_da_prenotare",
+                     "festa_compleanno": "festa_compleanno"}.get(tipo)
+        if categoria:
+            self.dati_completi["scadenze_personali"][nome_finale]["categoria"] = categoria
         salva_dati(self.dati_completi)
 
         if messagebox.askyesno("Ricorrenza", f"'{nome_finale}' si ripete nel tempo (es. ogni settimana)?"):
@@ -2041,48 +2104,53 @@ class ScadenzeApp:
         messagebox.showinfo("Successo", f"Scadenza '{nome_scadenza}' eliminata!")
     
     def salva_scadenze_personali(self):
-        """Salva le modifiche alle scadenze personali con orari opzionali"""
-        try:
-            for voce, widgets in self.scadenze_personali_widgets.items():
-                data_str = widgets["entry"].get()
+        """Salva le modifiche alle scadenze personali con orari opzionali.
+
+        Controlla prima tutte le righe: se una è sbagliata non cambia nulla e dice quale.
+        Mantiene gli altri campi della voce (ricorrenza, categoria, ...).
+        """
+        nuove = {}
+        for voce, widgets in self.scadenze_personali_widgets.items():
+            try:
                 # Converte da formato italiano (GG-MM-AAAA) a ISO (YYYY-MM-DD)
-                data_iso = data_italiana_a_iso(data_str)
+                data_iso = data_italiana_a_iso(widgets["entry"].get().strip())
                 datetime.strptime(data_iso, "%Y-%m-%d")
-                
+
                 con_orario = not widgets["var_tutto_giorno"].get()
-                ora_inizio = None
-                ora_fine = None
-                
+                ora_inizio = ora_fine = None
                 if con_orario:
                     ora_inizio = widgets["entry_inizio"].get().strip()
                     ora_fine = widgets["entry_fine"].get().strip()
-                    if ora_inizio == "HH:MM":
+                    if ora_inizio in ("", "HH:MM"):
                         ora_inizio = None
-                    if ora_fine == "HH:MM":
+                    if ora_fine in ("", "HH:MM"):
                         ora_fine = None
                     # Valida il formato HH:MM
                     if ora_inizio:
                         datetime.strptime(ora_inizio, "%H:%M")
                     if ora_fine:
                         datetime.strptime(ora_fine, "%H:%M")
-                
-                self.dati_completi["scadenze_personali"][voce] = {
-                    "data": data_iso,  # Salva in formato ISO
-                    "con_orario": con_orario,
-                    "ora_inizio": ora_inizio,
-                    "ora_fine": ora_fine,
-                    "ricorrenza": self.dati_completi["scadenze_personali"].get(voce, {}).get("ricorrenza")
-                    if isinstance(self.dati_completi["scadenze_personali"].get(voce), dict) else None
-                }
-            
-            salva_dati(self.dati_completi)
-            self.aggiorna_visualizzazione()
-            messagebox.showinfo("Successo", "Scadenze personali salvate!")
-        except ValueError as e:
-            messagebox.showerror("Errore", f"Formato non valido!\nDate: GG-MM-AAAA\nOrari: HH:MM")
-    
-    
-    
+            except ValueError:
+                messagebox.showerror("Errore", f"Formato non valido in '{voce}'!\n\n"
+                                     "Date: GG-MM-AAAA\nOrari: HH:MM\n\nNessuna modifica è stata salvata.")
+                return
+
+            precedente = self.dati_completi["scadenze_personali"].get(voce)
+            voce_nuova = dict(precedente) if isinstance(precedente, dict) else {}
+            voce_nuova.update({
+                "data": data_iso,  # Salva in formato ISO
+                "con_orario": con_orario,
+                "ora_inizio": ora_inizio,
+                "ora_fine": ora_fine,
+            })
+            voce_nuova.setdefault("ricorrenza", None)
+            nuove[voce] = voce_nuova
+
+        self.dati_completi["scadenze_personali"].update(nuove)
+        salva_dati(self.dati_completi)
+        self.aggiorna_visualizzazione()
+        messagebox.showinfo("Successo", "Scadenze personali salvate!")
+
     def aggiorna_visualizzazione(self):
         oggi = datetime.now().date()
         dati = self.get_dati_veicolo()
@@ -2103,7 +2171,7 @@ class ScadenzeApp:
                 colore = "green"
                 stato = f"{giorni_rimasti} giorni"
             
-            widgets["label"].config(text=stato, fg=colore)
+            self._imposta_stato(widgets["label"], stato, colore)
         
         for voce, widgets in self.scadenze_km_widgets.items():
             info = dati["scadenze_chilometriche"][voce]
@@ -2119,7 +2187,7 @@ class ScadenzeApp:
                 colore = "green"
                 stato = f"{km_residui} km"
             
-            widgets["label"].config(text=stato, fg=colore)
+            self._imposta_stato(widgets["label"], stato, colore)
         
         # Aggiorna scadenze personali
         for voce, widgets in self.scadenze_personali_widgets.items():
@@ -2133,7 +2201,7 @@ class ScadenzeApp:
                 data_iniziale, data_obj.get("ricorrenza"), oggi
             )
             if data_scadenza is None:
-                widgets["label"].config(text="Ricorrenza terminata", fg="gray")
+                self._imposta_stato(widgets["label"], "Ricorrenza terminata", "gray")
                 continue
             giorni_rimasti = (data_scadenza - oggi).days
             
@@ -2158,7 +2226,7 @@ class ScadenzeApp:
             if descrizione_ricorrenza:
                 stato += f"\n{descrizione_ricorrenza}"
 
-            widgets["label"].config(text=stato, fg=colore)
+            self._imposta_stato(widgets["label"], stato, colore)
 
 
 if __name__ == "__main__":

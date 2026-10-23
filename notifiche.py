@@ -24,9 +24,8 @@ def controlla_e_notifica(dati_veicolo):
     for voce, data_str in dati_veicolo.get("scadenze_fisse", {}).items():
         try:
             data_iniziale = datetime.strptime(data_str, "%Y-%m-%d").date()
-            data_scadenza = prossima_occorrenza(
-                data_iniziale, data_obj.get("ricorrenza"), oggi
-            )
+            # Le scadenze dei veicoli non hanno ricorrenze: si usa la data così com'è
+            data_scadenza = prossima_occorrenza(data_iniziale, None, oggi)
             if data_scadenza is None:
                 continue
             giorni_rimasti = (data_scadenza - oggi).days
@@ -46,8 +45,8 @@ def controlla_e_notifica(dati_veicolo):
                     f"{voce} in scadenza tra {giorni_rimasti} giorni\nTarga: {targa}"
                 )
                 notifiche_inviate.append(f"{voce} - {giorni_rimasti} giorni")
-        except:
-            pass
+        except (ValueError, TypeError) as e:
+            print(f"Scadenza '{voce}' non controllata: {e}")
     
     # Controlla scadenze chilometriche
     for voce, info in dati_veicolo.get("scadenze_chilometriche", {}).items():
@@ -158,8 +157,8 @@ def controlla_scadenze_personali(scadenze_personali):
                     f"{voce} in scadenza tra {giorni_rimasti} giorni"
                 )
                 notifiche_inviate.append(f"{voce} - {giorni_rimasti} giorni")
-        except:
-            pass
+        except (ValueError, TypeError) as e:
+            print(f"Scadenza '{voce}' non controllata: {e}")
     
     return notifiche_inviate
 

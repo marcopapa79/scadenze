@@ -43,7 +43,9 @@ tk.Tk() → ScadenzeApp     carica il JSON, eventuale migrazione, costruisce le 
 root.mainloop()
 ```
 
-> ⚠️ `stato_veicolo.json`, `credentials.json` e `token.pickle` sono cercati **nella cartella corrente**, non in quella dello script. Con i `.bat` va bene perché fanno `cd`; se lanci `python C:\...\main.py` da un'altra cartella, l'app crea un **nuovo** file dati vuoto lì (vedi revisione, punto 6).
+Tutti i file (`stato_veicolo.json`, `backup/`, `credentials.json`, `token.pickle`, `riepilogo_settimana.png`) sono cercati nella **cartella del programma** (`CARTELLA_PROGRAMMA` in `main.py` e `google_calendar.py`), da qualunque cartella lo si avvii.
+
+La versione con grafica moderna (§13) è stata provata e messa da parte: il suo `avvia_moderno.bat` è stato tolto il 23/10/2026; se serve si avvia con `python main_moderno.py`. Usa **lo stesso file dati** della classica.
 
 ---
 
@@ -51,13 +53,16 @@ root.mainloop()
 
 | File | Righe | Ruolo |
 |---|---|---|
-| `main.py` | ~1580 | Interfaccia grafica (classe `ScadenzeApp`), lettura/scrittura JSON, conversione date, semaforo |
+| `main.py` | ~2200 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
+| `main_moderno.py` | ~380 | Versione con grafica moderna: `ScadenzeAppModerna` eredita da `ScadenzeApp` e ridisegna solo la finestra principale con customtkinter (§13) |
 | `ricorrenze.py` | ~70 | `prossima_occorrenza()`: calcola la prossima data di una scadenza ricorrente |
 | `notifiche.py` | ~175 | Controllo scadenze e invio notifiche desktop con `plyer` |
 | `google_calendar.py` | ~545 | OAuth Google, export eventi (singoli e in blocco, con RRULE), import eventi |
 | `immagine_settimana.py` | ~230 | Immagine a colori degli impegni della settimana e copia negli appunti (Pillow + ctypes) |
 | `stato_veicolo.json` | — | Tutti i dati |
-| `requirements.txt` | — | `plyer` + librerie Google |
+| `backup/` | — | Una copia di `stato_veicolo.json` al giorno (`stato_veicolo_AAAA-MM-GG.json`), ultime 30 (esclusa da git) |
+| `avvia_scadenze.bat` | — | Avvio con installazione automatica delle librerie mancanti |
+| `requirements.txt` | — | `plyer`, `Pillow`, `customtkinter` + librerie Google |
 | `credentials.json` / `client_secret_*.json` | — | Credenziali OAuth (escluse da git) |
 | `token.pickle` | — | Token Google salvato dopo il primo login (escluso da git) |
 
@@ -99,7 +104,7 @@ main.py ──► ricorrenze.py
       "ora_inizio": "16:00",               // "HH:MM" oppure null
       "ora_fine": "17:00",
       "ricorrenza": null,                  // oppure oggetto (sotto)
-      "categoria": "visita_prenotata"      // facoltativo, solo per alcuni import
+      "categoria": "visita_prenotata"      // facoltativo: visita_prenotata | visita_da_prenotare | festa_compleanno
     },
     "Basket": {
       "data": "2026-09-22", "con_orario": true, "ora_inizio": "17:30", "ora_fine": "18:30",
@@ -124,14 +129,15 @@ Note:
 
 ## 5. Come vengono classificate le scadenze personali
 
-Non c'è un campo "tipo" affidabile: la sezione in cui compare una voce dipende **soprattutto dal nome** (`crea_tab_personali`):
+Un'unica funzione, `_sezione_personale(nome, voce)`, decide la sezione per la scheda, per Copia settimana/immagine e per l'export su Google:
 
 | Ordine | Condizione | Sezione |
 |---|---|---|
-| 1 | nome contiene `visita` o `medic` **e** contiene `prenotare` | Visite da prenotare |
-| 2 | `categoria == "visita_prenotata"` **oppure** nome contiene `visita`/`medic` | Visite prenotate |
-| 3 | nome contiene `compleanno` o `festa` | Feste e compleanni |
-| 4 | tutto il resto | Scadenze |
+| 1 | `categoria` è `visita_prenotata` / `visita_da_prenotare` **oppure** il nome contiene `visita` o `medic` | Visite: **da prenotare** se il nome contiene `prenotare`, altrimenti **prenotate** |
+| 2 | `categoria == "festa_compleanno"` **oppure** il nome contiene `compleanno` o `festa` | Feste e compleanni |
+| 3 | tutto il resto | Scadenze |
+
+La `categoria` viene salvata dai pulsanti "+ Nuova Visita Prenotata", "+ Nuova Visita da Prenotare", "+ Festa o Compleanno" (e dall'import di Google per le visite), quindi una visita chiamata "Controllo oculistico" resta tra le visite anche senza la parola "visita". La categoria non si perde salvando né rinominando.
 
 Il pulsante "+ Nuova Visita da Prenotare" aggiunge automaticamente il suffisso ` da prenotare` al nome. Rinominare una voce può quindi **spostarla di sezione**.
 
@@ -177,7 +183,9 @@ La ricorrenza si imposta con il pulsante 🔁 su ogni riga (finestra `_dialog_ri
 
 ## 8. Salvataggio
 
-- `salva_dati()` riscrive **tutto** il JSON ad ogni modifica.
+- `salva_dati()` riscrive **tutto** il JSON ad ogni modifica, in modo sicuro: scrive `stato_veicolo.json.tmp` e poi lo sostituisce all'originale (`os.replace`), così un'interruzione a metà non lascia il file vuoto o rovinato.
+- Prima del primo salvataggio di ogni giorno, `_backup_giornaliero()` copia il file in `backup/stato_veicolo_AAAA-MM-GG.json` e tiene solo le ultime `GIORNI_BACKUP = 30` copie. Per tornare indietro basta copiare una di queste sopra `stato_veicolo.json` (ad app chiusa).
+- "Salva Scadenze Personali" / "Salva Scadenze Temporali" controllano **prima tutte le righe**: se una data o un orario è sbagliato non cambia nulla e il messaggio dice in quale voce è l'errore.
 - Aggiunta, eliminazione, rinomina, cambio veicolo, km e ricorrenza **salvano subito**.
 - Le modifiche fatte **a mano nei campi** (date, orari, km di tagliando…) vengono salvate **solo** premendo il relativo pulsante blu "Salva …". Se si cambia veicolo o si aggiunge una voce prima di aver salvato, l'interfaccia viene ricostruita dal file e quelle modifiche si perdono.
 - Dopo quasi ogni operazione l'interfaccia viene distrutta e ricostruita da zero (`ricarica_interfaccia()`), riaprendo di default la scheda *Scadenze Personali* (o *Veicoli* se si è cambiato veicolo).
@@ -311,6 +319,7 @@ Sab 24/10  Compleanno nonna
 | Soglie di preavviso | `SOGLIA_*` in `main.py` **e** in `notifiche.py` |
 | Nome del calendario Google | stringa `'Famiglia'` in `google_calendar.py` (3 punti) e `main.py` (import) |
 | Promemoria degli eventi | `PROMEMORIA_RICORRENTI` / `PROMEMORIA_SINGOLI` in `google_calendar.py` |
+| Colore di sfondo (versione classica) | `COLORE_SFONDO` in `main.py` (es. `"#f0f0f0"` chiaro, `"#cfd8dc"` grigio-azzurro, `"#b0bec5"` più scuro). I colori del testo di stato sono scuriti in `_imposta_stato()` per restare leggibili |
 | Velocità scroll (rotellina) scheda Personali | `SCROLL_PIXEL_PER_UNITA` / `SCROLL_UNITA_PER_SCATTO` in `main.py` |
 | Stima km/giorno | `km_medi_al_giorno = 50` in `esporta_scadenze_veicolo()` |
 | Parole chiave per le sezioni | `_is_visita_personale`, `_is_visita_da_prenotare`, `_is_festa_compleanno` in `main.py` |
@@ -324,7 +333,7 @@ Verificata il 17/10/2026. I punti 1 e 2 sono stati **riprodotti con un test**.
 
 ### 🔴 Bug
 
-**1. Le notifiche delle scadenze a data dei veicoli non partono mai.**
+**1. ✅ CORRETTO il 23/10/2026 — Le notifiche delle scadenze a data dei veicoli non partono mai.**
 `notifiche.py`, `controlla_e_notifica()`, riga 28: usa la variabile `data_obj`, che in quella funzione non esiste. Ne nasce un `NameError`, nascosto dal `except: pass`, quindi Bollo, Assicurazione e Revisione **non generano mai notifiche**, nemmeno se scadute. (Le scadenze a km e quelle personali funzionano.)
 Correzione: passare `None` al posto di `data_obj.get("ricorrenza")`.
 
@@ -332,29 +341,55 @@ Correzione: passare `None` al posto di `data_obj.get("ricorrenza")`.
 `ricorrenze.py`, riga 60: l'indice di partenza è il numero di mesi trascorsi, ma viene poi moltiplicato per l'intervallo. Esempio: "ogni 2 mesi dal 15/01", oggi 01/03 → restituisce 15/05 invece di 15/03.
 Correzione: partire da `(mese - mese_iniziale) // intervallo`.
 
-**3. Il campo `categoria` viene perso al salvataggio.**
+**3. ✅ CORRETTO il 23/10/2026 — Il campo `categoria` viene perso al salvataggio.**
 `salva_scadenze_personali()` riscrive ogni voce con solo `data/con_orario/ora_inizio/ora_fine/ricorrenza`. Una visita importata da Google con `categoria: visita_prenotata`, ma senza "visita" nel nome, dopo il primo "Salva Scadenze Personali" finisce nella sezione *Scadenze*.
 
-**4. "+ Nuova Visita Prenotata" non registra la categoria.**
+**4. ✅ CORRETTO il 23/10/2026 — "+ Nuova Visita Prenotata" non registra la categoria.**
 La voce viene messa tra le visite solo se il nome contiene "visita" o "medic". Una visita chiamata, per esempio, "Controllo oculistico" finisce tra le *Scadenze*; "Controllo oculistico da prenotare" non va tra le *Visite da prenotare*. Stesso discorso per le feste.
 
 ### 🟠 Rischi
 
-**5. Scrittura del JSON non sicura.** `salva_dati()` sovrascrive direttamente il file: se il PC si spegne o l'app va in crash durante la scrittura, `stato_veicolo.json` può restare vuoto o corrotto e l'app non riparte più. Meglio scrivere su un file temporaneo e poi sostituire (`os.replace`), tenendo una copia `.bak`.
+**5. ✅ CORRETTO il 23/10/2026 (scrittura sicura + copie giornaliere, §8) — Scrittura del JSON non sicura.** `salva_dati()` sovrascrive direttamente il file: se il PC si spegne o l'app va in crash durante la scrittura, `stato_veicolo.json` può restare vuoto o corrotto e l'app non riparte più. Meglio scrivere su un file temporaneo e poi sostituire (`os.replace`), tenendo una copia `.bak`.
 
-**6. Percorsi relativi.** Lanciando `main.py` da un'altra cartella si crea un nuovo file dati vuoto e non si trovano le credenziali Google. Meglio basare i percorsi su `os.path.dirname(__file__)`.
+**6. ✅ CORRETTO il 23/10/2026 — Percorsi relativi.** Lanciando `main.py` da un'altra cartella si crea un nuovo file dati vuoto e non si trovano le credenziali Google. Meglio basare i percorsi su `os.path.dirname(__file__)`.
 
-**7. Salvataggio parziale in memoria.** In `salva_scadenze_personali()` / `salva_scadenze_temp()`, se una riga a metà lista ha una data sbagliata, le righe precedenti sono già state modificate in memoria; non vengono scritte subito, ma lo saranno al prossimo salvataggio di qualsiasi altra cosa.
+**7. ✅ CORRETTO il 23/10/2026 — Salvataggio parziale in memoria.** In `salva_scadenze_personali()` / `salva_scadenze_temp()`, se una riga a metà lista ha una data sbagliata, le righe precedenti sono già state modificate in memoria; non vengono scritte subito, ma lo saranno al prossimo salvataggio di qualsiasi altra cosa.
 
 **8. Export duplicati su Google** (vedi §10): nessun controllo sugli eventi già presenti.
 
-**9. `except:` generici** in `notifiche.py` e nelle conversioni di data nascondono gli errori (è così che il bug 1 è rimasto invisibile).
+**9. In parte corretto il 23/10/2026 (in `notifiche.py` gli errori ora vengono stampati) — `except:` generici** in `notifiche.py` e nelle conversioni di data nascondono gli errori (è così che il bug 1 è rimasto invisibile).
 
 ### 🟡 Manutenibilità
 
 - Soglie duplicate in due file: se ne cambi una sola, semaforo e notifiche non coincidono.
 - Il blocco "Modulo Google Calendar non disponibile…" è copiato 5 volte in `main.py`.
-- Il riconoscimento "è una visita?" nell'export singolo usa `"Visita" in nome` (maiuscolo) mentre la classificazione usa la `categoria` e le parole chiave minuscole: due regole diverse per la stessa cosa.
-- `avvia_scadenze.bat` controlla solo `plyer`: se mancano le librerie Google l'app parte ma senza i pulsanti Calendar, senza avvisare.
+- ✅ Corretto il 23/10/2026: il riconoscimento "è una visita?" ora usa ovunque `_sezione_personale()` (§5).
+- `avvia_scadenze.bat` controlla `plyer` e `PIL`: se mancano le librerie Google l'app parte ma senza i pulsanti Calendar, senza avvisare.
 - `README.md` in parte non aggiornato: non cita feste, import da Calendar e ricorrenze (promemoria e colori corretti il 17/10/2026).
 - Il nome del veicolo è anche la chiave del dizionario: rinominarlo ricrea la chiave (gestito correttamente, ma fragile).
+
+---
+
+## 13. Versione moderna (`main_moderno.py`)
+
+**Stato (23/10/2026): provata e messa da parte**, l'interfaccia classica è stata preferita (colore di sfondo regolabile con `COLORE_SFONDO`). `avvia_moderno.bat` è stato tolto; per riprovarla: `python main_moderno.py`. Usa lo stesso `stato_veicolo.json` della versione classica: si può passare dall'una all'altra in qualsiasi momento (meglio non tenerle aperte insieme, altrimenti l'ultima che salva sovrascrive l'altra).
+
+**Come è fatta.** `ScadenzeAppModerna` *eredita* da `ScadenzeApp` (main.py) e ridefinisce solo i metodi che disegnano la finestra principale:
+
+| Metodo ridefinito | Cosa fa |
+|---|---|
+| `_prepara_finestra()` | titolo, dimensioni, caratteri `CTkFont` |
+| `crea_interfaccia()` | schede `CTkTabview` (🚗 Veicoli, 📋 Scadenze Personali) |
+| `crea_tab_veicoli()`, `crea_tab_personali()`, `_crea_riga_personale()` | riquadri arrotondati con barra colorata, campi `CTkEntry`, `CTkCheckBox`, `CTkOptionMenu`, pulsanti `CTkButton`, area `CTkScrollableFrame` |
+| `_imposta_stato()`, `_abilita_campo()` | aggiornano testo/colore di stato e attivano i campi orario con le opzioni di customtkinter |
+
+Tutto il resto (salvataggi, aggiunte, eliminazioni, ricorrenze, notifiche, Google Calendar, Copia settimana/immagine, Modifica impegni, finestre di dialogo) **è il codice di main.py**: una correzione fatta lì vale per entrambe le versioni. Per questo `main.py` usa i piccoli metodi `_prepara_finestra`, `_imposta_stato` e `_abilita_campo` invece di modificare i widget direttamente.
+
+**Velocità.** I widget di customtkinter sono disegnati uno per uno (angoli arrotondati), quindi costano di più. Per contenere il tempo di ridisegno:
+- si costruisce solo la scheda visibile; l'altra viene costruita la prima volta che la si apre (`_costruisci_scheda_visibile`);
+- l'area scorrevole viene riempita prima di essere mostrata;
+- i pulsantini ✏️ ✕ 📅 🔁 delle righe sono pulsanti tkinter piatti (circa 25 volte più leggeri).
+
+Misure nella prova (finestra virtuale, 18 scadenze personali): apertura e ridisegno circa **0,45 s** contro 0,05 s della versione classica.
+
+**Tema.** `TEMA = "light"` in cima a `main_moderno.py`; si può mettere `"dark"` o `"system"` (segue Windows). Le finestre secondarie (Copia settimana, immagine, ricorrenza, domande) restano in stile classico chiaro.

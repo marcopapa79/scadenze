@@ -21,8 +21,9 @@ except ImportError:
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 # File per salvare le credenziali
-TOKEN_FILE = 'token.pickle'
-CREDENTIALS_FILE = 'credentials.json'
+CARTELLA_PROGRAMMA = os.path.dirname(os.path.abspath(__file__))
+TOKEN_FILE = os.path.join(CARTELLA_PROGRAMMA, 'token.pickle')
+CREDENTIALS_FILE = os.path.join(CARTELLA_PROGRAMMA, 'credentials.json')
 
 # Promemoria popup sugli eventi esportati (minuti prima dell'evento)
 PROMEMORIA_RICORRENTI = [10]          # eventi che si ripetono: 10 minuti prima

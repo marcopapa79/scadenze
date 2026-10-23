@@ -44,3 +44,7 @@ Thumbs.db
 credentials.json
 token.pickle
 client_secret*.json
+
+# Copie di sicurezza e file temporanei del salvataggio
+backup/
+*.tmp

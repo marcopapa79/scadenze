@@ -110,12 +110,16 @@ python notifiche.py
 
 ## 📁 Struttura File
 
-- `main.py`: Applicazione principale con GUI
+- `main.py`: Applicazione principale con GUI (versione classica)
+- `main_moderno.py`: Versione con grafica moderna, provata e messa da parte (si avvia con `python main_moderno.py`, richiede `customtkinter`)
+- `ricorrenze.py`: Calcolo delle date delle scadenze che si ripetono
+- `immagine_settimana.py`: Immagine a colori per WhatsApp (calendario / elenco)
 - `notifiche.py`: Sistema di notifiche desktop
 - `google_calendar.py`: Modulo esportazione Google Calendar
 - `stato_veicolo.json`: Database locale con i dati dei veicoli
 - `requirements.txt`: Dipendenze Python
 - `avvia_scadenze.bat`: Avvio con controlli automatici (Windows)
+- `backup/`: Copie di sicurezza giornaliere dei dati (create automaticamente)
 - `run.bat`: Avvio rapido (Windows)
 - `GOOGLE_CALENDAR_SETUP.md`: Guida setup Google Calendar
 - `credentials.json`: **Credenziali Google (NON committare!)**
@@ -129,9 +133,22 @@ SOGLIA_KM_PREAVVISO = 3500  # Avviso a 3500 km dalla scadenza
 SOGLIA_GIORNI_PREAVVISO = 30  # Avviso 30 giorni prima
 ```
 
+Colore di sfondo della versione classica, in cima a `main.py`:
+```python
+COLORE_SFONDO = "#f0f0f0"   # grigio chiaro (predefinito)
+                            # altri esempi: "#dcdfe3" grigio un po' più scuro, "#cfd8dc" grigio-azzurro, "#b0bec5" grigio-azzurro scuro
+```
+
+Nella versione moderna, in cima a `main_moderno.py`:
+```python
+TEMA = "light"   # "light" chiaro, "dark" scuro, "system" segue Windows
+```
+
 ## 💾 Backup
 
-I dati sono salvati in `stato_veicolo.json`. Si consiglia di fare backup regolari di questo file.
+I dati sono salvati in `stato_veicolo.json`, in modo sicuro (se il PC si spegne durante un salvataggio il file resta integro).
+
+Ogni giorno, al primo salvataggio, l'app ne fa una copia nella cartella `backup/` (`stato_veicolo_AAAA-MM-GG.json`) e tiene le ultime 30. Per recuperare i dati di un giorno: chiudi l'app e copia quel file sopra `stato_veicolo.json`.
 
 ## 📝 Licenza
 
