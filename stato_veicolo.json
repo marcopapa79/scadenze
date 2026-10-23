@@ -139,13 +139,6 @@
                 "fino_al": "2027-06-29"
             }
         },
-        "Post Ado servizi": {
-            "data": "2026-10-23",
-            "con_orario": true,
-            "ora_inizio": "09:30",
-            "ora_fine": "10:45",
-            "ricorrenza": null
-        },
         "Pallavolo Aurora": {
             "data": "2026-10-05",
             "con_orario": true,
@@ -205,6 +198,20 @@
             "con_orario": true,
             "ora_inizio": "12:30",
             "ora_fine": "12:55",
+            "ricorrenza": null
+        },
+        "Rete Famiglie Adottive": {
+            "data": "2026-11-28",
+            "con_orario": false,
+            "ora_inizio": null,
+            "ora_fine": null,
+            "ricorrenza": null
+        },
+        "Post Ado servizi": {
+            "data": "2026-11-27",
+            "con_orario": true,
+            "ora_inizio": "10:45",
+            "ora_fine": "12:15",
             "ricorrenza": null
         }
     }
