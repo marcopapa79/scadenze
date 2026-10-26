@@ -1725,6 +1725,10 @@ class ScadenzeApp:
             self._imposta_stato(widgets["label"], stato, colore)
 
     FILE_REPORT_MEDICINALI = "report_medicinali"  # .png e .pdf nella cartella del programma
+    INGRANDIMENTO_STAMPA = 1.15  # nel PDF da stampare i caratteri sono più grandi del 15%
+    # ...ma se così servirebbe un secondo foglio e con caratteri un po' più piccoli sta in uno solo,
+    # si stampa su un foglio solo
+    INGRANDIMENTI_PER_UN_FOGLIO = (1.1, 1.05, 1.0)
 
     def _righe_report_medicinali(self):
         """Righe del report nell'ordine scelto nella scheda, più il riepilogo in alto."""
@@ -1762,7 +1766,10 @@ class ScadenzeApp:
     def report_medicinali(self):
         """Anteprima del report con i pulsanti per WhatsApp (immagine negli appunti) e per la stampa (PDF A4).
 
-        La spunta "Mostra lo stato" toglie o rimette la colonna Stato (scelta ricordata nel file dati).
+        Le spunte "Mostra lo stato", "Mostra 'Dopo apertura'" e "Mostra 'Aperto il'" tolgono o
+        rimettono quelle colonne (scelte ricordate nel file dati). Se c'è spazio la tabella si
+        divide in più colonne affiancate (es. solo Medicinale, Scadenza e Posizione: 2 colonne sul
+        foglio verticale, 3 su quello orizzontale). "Foglio: Verticale / Orizzontale" vale per il PDF.
         """
         if not IMMAGINE_DISPONIBILE:
             messagebox.showerror("Errore", "Per creare il report serve la libreria Pillow.\n\n"
@@ -1773,12 +1780,16 @@ class ScadenzeApp:
         base = os.path.join(CARTELLA_PROGRAMMA, self.FILE_REPORT_MEDICINALI)
         impostazioni = self.dati_completi.setdefault("impostazioni", {})
         var_stato = tk.BooleanVar(master=self.root, value=impostazioni.get("report_mostra_stato", True))
+        var_durata = tk.BooleanVar(master=self.root, value=impostazioni.get("report_mostra_durata", True))
+        var_apertura = tk.BooleanVar(master=self.root, value=impostazioni.get("report_mostra_apertura", True))
+        var_orizzontale = tk.BooleanVar(master=self.root, value=impostazioni.get("report_orizzontale", False))
         stato = {"immagine": None}
 
         def parametri():
             mostra = var_stato.get()
             # Senza stato, in alto resta solo il numero di medicinali
             return dict(oggi=oggi, sottotitolo=sottotitolo, mostra_stato=mostra,
+                        mostra_durata=var_durata.get(), mostra_apertura=var_apertura.get(),
                         riepilogo=riepilogo if mostra else riepilogo[:1])
 
         win = tk.Toplevel(self.root)
@@ -1787,6 +1798,8 @@ class ScadenzeApp:
         win.transient(self.root)
         barra = tk.Frame(win, bg=COLORE_SFONDO)
         barra.pack(fill=tk.X, padx=10, pady=(10, 0))
+        barra_colonne = tk.Frame(win, bg=COLORE_SFONDO)
+        barra_colonne.pack(fill=tk.X, padx=10, pady=(6, 0))
         lbl_msg = tk.Label(win, text="", font=self.normal_font, bg=COLORE_SFONDO, justify=tk.LEFT)
         lbl_msg.pack(anchor=tk.W, padx=10, pady=(6, 4))
         area = tk.Label(win, bg=COLORE_SFONDO)
@@ -1820,16 +1833,39 @@ class ScadenzeApp:
                 pass
             copia()  # come per gli impegni: il report è subito negli appunti
 
-        def cambia_stato():
+        def cambia_colonne():
             impostazioni["report_mostra_stato"] = var_stato.get()
+            impostazioni["report_mostra_durata"] = var_durata.get()
+            impostazioni["report_mostra_apertura"] = var_apertura.get()
             salva_dati(self.dati_completi)
             genera()
 
+        def cambia_foglio():
+            impostazioni["report_orizzontale"] = var_orizzontale.get()
+            salva_dati(self.dati_completi)
+            verso = "orizzontale" if var_orizzontale.get() else "verticale"
+            lbl_msg.config(text=f"📄 Il PDF sarà su foglio A4 {verso}: premi «🖨️ Stampa (PDF)»", fg="#37474F")
+
         def stampa():
-            pagine = immagine_settimana.crea_report_medicinali(
-                righe, altezza_pagina=immagine_settimana.altezza_pagina_report_a4(), **parametri())
+            orizzontale = var_orizzontale.get()
+            pagina = immagine_settimana.pagina_report_a4(orizzontale)
+
+            def pagine_pdf(ingrandimento):
+                return immagine_settimana.crea_report_medicinali(
+                    righe, larghezza=pagina["larghezza"], altezza_pagina=pagina["altezza_pagina"],
+                    ingrandimento=ingrandimento, **parametri())
+
+            pagine = pagine_pdf(self.INGRANDIMENTO_STAMPA)
+            # Se per poco non sta in un foglio, caratteri un filo più piccoli (mai sotto la grandezza normale)
+            if len(pagine) > 1:
+                for ingrandimento in self.INGRANDIMENTI_PER_UN_FOGLIO:
+                    if ingrandimento < self.INGRANDIMENTO_STAMPA:
+                        prova = pagine_pdf(ingrandimento)
+                        if len(prova) == 1:
+                            pagine = prova
+                            break
             try:
-                pdf = immagine_settimana.salva_pdf_a4(pagine, base + ".pdf")
+                pdf = immagine_settimana.salva_pdf_a4(pagine, base + ".pdf", orizzontale=orizzontale)
             except OSError as e:
                 lbl_msg.config(text=f"⚠️ PDF non creato: {e}\n(forse è aperto in un altro programma: chiudilo e riprova)",
                                fg="#B71C1C")
@@ -1837,7 +1873,8 @@ class ScadenzeApp:
             try:
                 os.startfile(pdf)  # apre il PDF con il programma predefinito (Windows)
                 lbl_msg.config(text=f"🖨️ Si è aperto il PDF ({len(pagine)} pagin{'a' if len(pagine) == 1 else 'e'}"
-                                    f" A4): premi Ctrl+P per stampare.\nSalvato in: {pdf}", fg="#1B5E20")
+                                    f" A4 {'orizzontal' if orizzontale else 'vertical'}{'e' if len(pagine) == 1 else 'i'}):"
+                                    f" premi Ctrl+P per stampare.\nSalvato in: {pdf}", fg="#1B5E20")
             except (AttributeError, OSError):
                 lbl_msg.config(text=f"PDF salvato in: {pdf}\nAprilo e stampalo da lì.", fg="#1B5E20")
 
@@ -1845,11 +1882,20 @@ class ScadenzeApp:
                   font=self.normal_font).pack(side=tk.LEFT, padx=4)
         tk.Button(barra, text="🖨️ Stampa (PDF)", command=stampa, bg="#455A64", fg="white",
                   font=self.normal_font).pack(side=tk.LEFT, padx=4)
-        tk.Checkbutton(barra, text="Mostra lo stato (giorni rimasti, scaduti...)", variable=var_stato,
-                       command=cambia_stato, font=self.normal_font, bg=COLORE_SFONDO,
-                       activebackground=COLORE_SFONDO).pack(side=tk.LEFT, padx=(16, 4))
+        tk.Label(barra, text="Foglio:", font=self.normal_font, bg=COLORE_SFONDO).pack(side=tk.LEFT, padx=(16, 2))
+        for testo, valore in (("Verticale", False), ("Orizzontale", True)):
+            tk.Radiobutton(barra, text=testo, variable=var_orizzontale, value=valore, command=cambia_foglio,
+                           font=self.normal_font, bg=COLORE_SFONDO,
+                           activebackground=COLORE_SFONDO).pack(side=tk.LEFT, padx=2)
         tk.Button(barra, text="Chiudi", command=win.destroy, bg="#9E9E9E", fg="white",
                   font=self.normal_font, width=10).pack(side=tk.LEFT, padx=(16, 4))
+        tk.Label(barra_colonne, text="Colonne:", font=self.normal_font, bg=COLORE_SFONDO).pack(side=tk.LEFT, padx=(4, 2))
+        for testo, variabile in (("Mostra lo stato (giorni rimasti, scaduti...)", var_stato),
+                                 ("Mostra 'Dopo apertura'", var_durata),
+                                 ("Mostra 'Aperto il'", var_apertura)):
+            tk.Checkbutton(barra_colonne, text=testo, variable=variabile, command=cambia_colonne,
+                           font=self.normal_font, bg=COLORE_SFONDO,
+                           activebackground=COLORE_SFONDO).pack(side=tk.LEFT, padx=4)
         genera()
 
     def aggiungi_medicinale(self):

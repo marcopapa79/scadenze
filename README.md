@@ -24,7 +24,7 @@ Applicazione Python con interfaccia grafica per la gestione delle scadenze di ve
 - **Giorni rimanenti colorati** (rosso scaduto, arancione entro 30 giorni, verde) e "aperto da N giorni"
 - **Scadenza come sulla confezione**: si può scrivere `GG-MM-AAAA` oppure solo `MM-AAAA` (vale fino a fine mese)
 - **Solo promemoria**: niente notifiche, non va su Google Calendar né nei riepiloghi settimanali
-- **🖨️ Report (stampa / WhatsApp)**: tabella pulita di tutti i medicinali con riepilogo in alto (quanti scaduti / in scadenza), nell'ordine scelto. "📋 Copia per WhatsApp" copia l'immagine (Ctrl+V nella chat); "🖨️ Stampa (PDF)" crea un PDF A4 (più pagine se servono) e lo apre: Ctrl+P per stampare. Salvati anche come `report_medicinali.png` / `.pdf`
+- **🖨️ Report (stampa / WhatsApp)**: tabella pulita di tutti i medicinali con riepilogo in alto (quanti scaduti / in scadenza), nell'ordine scelto. "📋 Copia per WhatsApp" copia l'immagine (Ctrl+V nella chat); "🖨️ Stampa (PDF)" crea un PDF A4, verticale o orizzontale, con i caratteri un po' più grandi (più pagine se servono) e lo apre: Ctrl+P per stampare. Salvati anche come `report_medicinali.png` / `.pdf`
 
 ### Funzionalità Comuni
 - **Notifiche Desktop**: Avvisi automatici per scadenze critiche
@@ -117,7 +117,7 @@ python main.py
 - **Titoli delle colonne**: clic per ordinare per nome, scadenza, apertura o posizione (▲/▼)
 - **Menu Posizione**: cambia il piano, salvato subito
 - **✏️** cambia il nome, **✕** elimina il medicinale
-- **🖨️ Report (stampa / WhatsApp)**: anteprima del report con i pulsanti **📋 Copia per WhatsApp** e **🖨️ Stampa (PDF)** e la spunta **Mostra lo stato**: togliendola il report diventa un semplice elenco (senza colonna Stato, colori e conteggi), utile da stampare e attaccare all'armadietto. La scelta viene ricordata
+- **🖨️ Report (stampa / WhatsApp)**: anteprima del report con i pulsanti **📋 Copia per WhatsApp** e **🖨️ Stampa (PDF)**, la scelta **Foglio: Verticale / Orizzontale** (vale per il PDF) e tre spunte: **Mostra lo stato** (togliendola il report diventa un semplice elenco, senza colonna Stato, colori e conteggi: utile da stampare e attaccare all'armadietto), **Mostra 'Dopo apertura'** e **Mostra 'Aperto il'** (tolgono quelle colonne). Se c'è spazio la tabella si divide in **più colonne affiancate**: togliendo tutte e tre restano Medicinale, Scadenza e Piano e vanno 2 colonne sul foglio verticale, 3 su quello orizzontale; in orizzontale ci stanno 2 colonne anche con 'Aperto il' o con lo stato. Con una quarantina di medicinali sta tutto in **un foglio A4**. Le colonne si adattano da sole ai testi (i nomi lunghi vanno a capo, mai tagliati); le scelte vengono ricordate. Nel PDF i caratteri sono più grandi del 15% (si cambia con `INGRANDIMENTO_STAMPA` in `main.py`, es. `1.25`); se però per poco non starebbe in un foglio, li rimpicciolisce quel tanto che basta (mai sotto la grandezza normale)
 
 ### Test Notifiche
 

@@ -54,11 +54,11 @@ Una versione con grafica moderna (customtkinter) è stata provata il 23/10/2026 
 
 | File | Righe | Ruolo |
 |---|---|---|
-| `main.py` | ~2200 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
+| `main.py` | ~2800 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
 | `ricorrenze.py` | ~70 | `prossima_occorrenza()`: calcola la prossima data di una scadenza ricorrente |
 | `notifiche.py` | ~175 | Controllo scadenze e invio notifiche desktop con `plyer` |
 | `google_calendar.py` | ~545 | OAuth Google, export eventi (singoli e in blocco, con RRULE), import eventi |
-| `immagine_settimana.py` | ~720 | Immagini con Pillow: impegni della settimana (elenco/calendario), report medicinali e PDF A4; copia negli appunti (ctypes) |
+| `immagine_settimana.py` | ~910 | Immagini con Pillow: impegni della settimana (elenco/calendario), report medicinali e PDF A4; copia negli appunti (ctypes) |
 | `stato_veicolo.json` | — | Tutti i dati |
 | `backup/` | — | Una copia di `stato_veicolo.json` al giorno (`stato_veicolo_AAAA-MM-GG.json`), ultime 30 (esclusa da git) |
 | `avvia_scadenze.bat` | — | Avvio con installazione automatica delle librerie mancanti |
@@ -131,7 +131,10 @@ main.py ──► ricorrenze.py
 
   "impostazioni": {
     "ordine_medicinali": ["scadenza", false],  // colonna ("nome", "scadenza", "apertura", "posizione"), invertito
-    "report_mostra_stato": true                // report medicinali con o senza colonna Stato
+    "report_mostra_stato": true,               // report medicinali con o senza colonna Stato
+    "report_mostra_durata": true,              // report medicinali con o senza colonna "Dopo apertura"
+    "report_mostra_apertura": true,            // report medicinali con o senza colonna "Aperto il"
+    "report_orizzontale": false                // PDF del report su foglio A4 orizzontale
   }
 }
 ```
@@ -233,8 +236,13 @@ Pulsante in alto nella scheda (`report_medicinali()`):
 2. `immagine_settimana.crea_report_medicinali()` disegna con Pillow una tabella (Medicinale, Scadenza, Aperto il, Dopo apertura, Posizione, Stato) con barretta colorata a sinistra di ogni riga, righe alternate, nomi e stato a capo se lunghi. Viene salvata in `report_medicinali.png` e **copiata subito negli appunti**.
 3. Finestra di anteprima con:
    - **📋 Copia per WhatsApp**: ricopia l'immagine negli appunti (stessa funzione dell'immagine settimanale);
-   - spunta **Mostra lo stato**: se tolta, `crea_report_medicinali(..., mostra_stato=False)` disegna la tabella senza colonna Stato (colonne `COLONNE_REPORT_SENZA_STATO`, più larghe), con barrette grigie e nel riepilogo solo il numero di medicinali. Vale per anteprima, immagine per WhatsApp e PDF; la scelta è salvata in `impostazioni.report_mostra_stato` (predefinito: con stato);
-   - **🖨️ Stampa (PDF)**: rigenera il report diviso in pagine (`altezza_pagina_report_a4()`), lo mette su fogli A4 verticali a 200 dpi con margini (`salva_pdf_a4()`), salva `report_medicinali.pdf` e lo apre con il programma predefinito (`os.startfile`): da lì Ctrl+P. Se il PDF è aperto in un altro programma e non si può sovrascrivere, compare un avviso.
+   - spunta **Mostra lo stato**: se tolta, `crea_report_medicinali(..., mostra_stato=False)` disegna la tabella senza colonna Stato, con barrette grigie e nel riepilogo solo il numero di medicinali;
+   - spunta **Mostra 'Dopo apertura'**: se tolta (`mostra_durata=False`) sparisce quella colonna;
+   - spunta **Mostra 'Aperto il'**: se tolta (`mostra_apertura=False`) sparisce quella colonna;
+   - **colonne affiancate**: se c'è spazio la tabella si divide in più colonne affiancate, come un giornale (giù nella prima, poi giù nella seconda...). `crea_report_medicinali(colonne_affiancate=None)` sceglie da solo quante ce ne stanno (fino a `MAX_AFFIANCATE` = 4) con le colonne alla larghezza "comoda" e "Medicinale" largo almeno `LARGHEZZA_NOME_AFFIANCATE` (170). In pratica: con solo Medicinale, Scadenza e Posizione 2 colonne sul foglio verticale e 3 su quello orizzontale; in orizzontale 2 colonne anche con "Aperto il" o con lo stato. Con più colonne affiancate "Posizione" si chiama "Piano" e contiene "Sotto / Intermedio / Sopra", le righe sono un po' più fitte, e le righe sono divise in modo che la colonna più alta sia la più bassa possibile (`_dividi_in_colonne()`); su più pagine si riempie una colonna dopo l'altra e l'ultima pagina viene bilanciata. Con ~40 medicinali sta tutto in un foglio A4;
+   - **Foglio: Verticale / Orizzontale** (vale solo per il PDF, salvato in `impostazioni.report_orizzontale`): `pagina_report_a4(orizzontale)` dà larghezza e altezza della pagina del report (verticale 900×1307, orizzontale 1307×900 pixel non scalati: i caratteri escono della stessa grandezza) e `salva_pdf_a4(..., orizzontale=True)` usa il foglio A4 girato. L'anteprima e l'immagine per WhatsApp restano verticali;
+   - le larghezze delle colonne sono calcolate da `_layout_colonne_report()` in base ai testi veri: si parte da "tutto su una riga"; se non ci sta, prima vanno a capo i titoli delle colonne (es. "Dopo / apertura", non costa righe in più), poi si stringono "Medicinale" (fino a `LARGHEZZA_COMODA_NOME`) e "Stato" (fino a dove ci sta "Scade tra 999 giorni"), infine tutte le colonne fino alla parola più lunga. I testi vanno a capo, mai tagliati; lo spazio che avanza si divide tra tutte (togliendo colonne, le altre si allargano). Le spunte valgono per anteprima, immagine per WhatsApp e PDF e sono salvate in `impostazioni.report_mostra_stato` / `report_mostra_durata` / `report_mostra_apertura` (predefinito: tutte visibili);
+   - **🖨️ Stampa (PDF)**: rigenera il report con i **caratteri più grandi del 15%** (`INGRANDIMENTO_STAMPA = 1.15` in `main.py`, parametro `ingrandimento` di `crea_report_medicinali()`; l'immagine per WhatsApp resta a 1.0), diviso in pagine (`pagina_report_a4()`). Se così servirebbe più di un foglio ma con caratteri un po' più piccoli (`INGRANDIMENTI_PER_UN_FOGLIO` = 1.1, 1.05, 1.0, mai sotto la grandezza normale) sta tutto in un foglio, usa quella grandezza. Poi lo mette su fogli A4 (verticali o orizzontali) a 200 dpi con margini (`salva_pdf_a4()`), salva `report_medicinali.pdf` e lo apre con il programma predefinito (`os.startfile`): da lì Ctrl+P. Se il PDF è aperto in un altro programma e non si può sovrascrivere, compare un avviso.
 - **Pulsanti:** "+ Nuovo Medicinale" (chiede nome, scadenza, apertura, posizione), "Salva Medicinali" (salva le date modificate nei campi e riordina; con una data sbagliata non salva nulla e dice quale), ✏️ rinomina, ✕ elimina. Dopo ogni operazione resta aperta la scheda Medicinali; la rotellina del mouse scorre anche questa scheda.
 
 ---

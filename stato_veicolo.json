@@ -539,9 +539,12 @@
     ],
     "impostazioni": {
         "ordine_medicinali": [
-            "posizione",
-            true
+            "scadenza",
+            false
         ],
-        "report_mostra_stato": false
+        "report_mostra_stato": false,
+        "report_mostra_durata": false,
+        "report_mostra_apertura": false,
+        "report_orizzontale": true
     }
 }
