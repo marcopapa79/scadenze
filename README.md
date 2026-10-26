@@ -16,6 +16,16 @@ Applicazione Python con interfaccia grafica per la gestione delle scadenze di ve
 - **Aggiunta/Rimozione Facile**: Con pulsante ✕ per ogni scadenza
 - **Notifiche Desktop**: Incluse nelle notifiche automatiche
 
+### Tab Medicinali
+- **Scadenza Medicinali**: nome, data di scadenza ed eventuale data di apertura
+- **Durata dopo l'apertura** (dal foglietto, es. `28 giorni`, `6 mesi`, `1 anno`): se la confezione è aperta, conta la data che arriva prima tra scadenza stampata e apertura + durata ("Da usare entro N giorni", poi "DA BUTTARE")
+- **Posizione nell'armadietto**: Piano sotto, Piano intermedio o Piano sopra (menu a tendina, si salva subito)
+- **Ordinabile**: clic sul titolo di una colonna (Medicinale, Scadenza, Aperto il, Posizione) per ordinare, un secondo clic inverte; l'ordine scelto viene ricordato
+- **Giorni rimanenti colorati** (rosso scaduto, arancione entro 30 giorni, verde) e "aperto da N giorni"
+- **Scadenza come sulla confezione**: si può scrivere `GG-MM-AAAA` oppure solo `MM-AAAA` (vale fino a fine mese)
+- **Solo promemoria**: niente notifiche, non va su Google Calendar né nei riepiloghi settimanali
+- **🖨️ Report (stampa / WhatsApp)**: tabella pulita di tutti i medicinali con riepilogo in alto (quanti scaduti / in scadenza), nell'ordine scelto. "📋 Copia per WhatsApp" copia l'immagine (Ctrl+V nella chat); "🖨️ Stampa (PDF)" crea un PDF A4 (più pagine se servono) e lo apre: Ctrl+P per stampare. Salvati anche come `report_medicinali.png` / `.pdf`
+
 ### Funzionalità Comuni
 - **Notifiche Desktop**: Avvisi automatici per scadenze critiche
 - **Esportazione Google Calendar**: Esporta scadenze direttamente su Google Calendar
@@ -101,6 +111,14 @@ python main.py
 - **Scegliere i giorni** (in tutte e due le finestre, barra **Dal:**): di default il periodo parte da oggi; con **<<** / **>>** si va indietro / avanti di una settimana, con **<** / **>** di un giorno, oppure si scrive una data (es. `20/11`, `1-12-26`, `01.12.2026`) e si preme **Vai** o Invio. **Oggi** torna al giorno corrente. A ogni cambio il testo o l'immagine vengono rigenerati e ricopiati negli appunti; per i giorni passati l'elenco mostra "ieri" / "N giorni fa". Senza anno (es. `5/1`) viene scelto l'anno più vicino a oggi
 - **✏️ Modifica impegni** (finestra immagine): apre gli impegni del periodo come un file di testo, una riga per impegno (`Gio 22/10  17:30-18:30  Basket Andrés`, senza orario = tutto il giorno) divisi per sezione con righe `# Visite`, `# Scadenze`, `# Feste e compleanni`, ecc. Si possono correggere, cancellare o aggiungere righe e poi premere **Aggiorna immagine** (o Ctrl+Invio). Le modifiche valgono **solo per l'immagine da mandare su WhatsApp**: i dati dell'app non cambiano. "Ripristina dai dati" annulla le modifiche
 
+**Tab Medicinali:**
+- **+ Nuovo Medicinale**: chiede nome, scadenza (`GG-MM-AAAA` o `MM-AAAA`), data di apertura (vuota se la confezione è chiusa), durata dopo l'apertura (vuota se non indicata) e posizione (Piano sotto / intermedio / sopra / non indicare)
+- **Salva Medicinali**: salva date e durate cambiate nei campi e rimette in ordine
+- **Titoli delle colonne**: clic per ordinare per nome, scadenza, apertura o posizione (▲/▼)
+- **Menu Posizione**: cambia il piano, salvato subito
+- **✏️** cambia il nome, **✕** elimina il medicinale
+- **🖨️ Report (stampa / WhatsApp)**: anteprima del report con i pulsanti **📋 Copia per WhatsApp** e **🖨️ Stampa (PDF)** e la spunta **Mostra lo stato**: togliendola il report diventa un semplice elenco (senza colonna Stato, colori e conteggi), utile da stampare e attaccare all'armadietto. La scelta viene ricordata
+
 ### Test Notifiche
 
 Per testare le notifiche desktop:
@@ -111,7 +129,6 @@ python notifiche.py
 ## 📁 Struttura File
 
 - `main.py`: Applicazione principale con GUI (versione classica)
-- `main_moderno.py`: Versione con grafica moderna, provata e messa da parte (si avvia con `python main_moderno.py`, richiede `customtkinter`)
 - `ricorrenze.py`: Calcolo delle date delle scadenze che si ripetono
 - `immagine_settimana.py`: Immagine a colori per WhatsApp (calendario / elenco)
 - `notifiche.py`: Sistema di notifiche desktop
@@ -137,11 +154,6 @@ Colore di sfondo della versione classica, in cima a `main.py`:
 ```python
 COLORE_SFONDO = "#f0f0f0"   # grigio chiaro (predefinito)
                             # altri esempi: "#dcdfe3" grigio un po' più scuro, "#cfd8dc" grigio-azzurro, "#b0bec5" grigio-azzurro scuro
-```
-
-Nella versione moderna, in cima a `main_moderno.py`:
-```python
-TEMA = "light"   # "light" chiaro, "dark" scuro, "system" segue Windows
 ```
 
 ## 💾 Backup

@@ -8,12 +8,13 @@ Per l'uso quotidiano (pulsanti, colori) vedi [README.md](README.md); per configu
 
 ## 1. Panoramica
 
-Applicazione desktop in **Python + tkinter**, a finestra singola con due schede:
+Applicazione desktop in **Python + tkinter**, a finestra singola con tre schede:
 
 | Scheda | Contenuto |
 |---|---|
 | 🚗 **Veicoli** | Più veicoli; per ognuno km attuali, scadenze a data (Bollo, Assicurazione, Revisione…) e scadenze chilometriche (Tagliando, Freni, Gomme…) |
 | 📋 **Scadenze Personali** | Quattro sezioni: *Visite prenotate*, *Visite da prenotare*, *Scadenze* (casa, ISEE, IMU, documenti…), *Feste e compleanni*. Supporta orari e ricorrenze settimanali/mensili |
+| 💊 **Medicinali** | Medicinali con data di scadenza ed eventuale data di apertura, in ordine di scadenza. Solo promemoria: niente notifiche, Calendar o WhatsApp (§8b) |
 
 Funzioni trasversali: semaforo verde/arancione/rosso, notifiche desktop (`plyer`), esportazione/importazione con Google Calendar (calendario **"Famiglia"**).
 
@@ -45,7 +46,7 @@ root.mainloop()
 
 Tutti i file (`stato_veicolo.json`, `backup/`, `credentials.json`, `token.pickle`, `riepilogo_settimana.png`) sono cercati nella **cartella del programma** (`CARTELLA_PROGRAMMA` in `main.py` e `google_calendar.py`), da qualunque cartella lo si avvii.
 
-La versione con grafica moderna (§13) è stata provata e messa da parte: il suo `avvia_moderno.bat` è stato tolto il 23/10/2026; se serve si avvia con `python main_moderno.py`. Usa **lo stesso file dati** della classica.
+Una versione con grafica moderna (customtkinter) è stata provata il 23/10/2026 e poi eliminata: si è preferita l'interfaccia classica (§13).
 
 ---
 
@@ -54,15 +55,14 @@ La versione con grafica moderna (§13) è stata provata e messa da parte: il suo
 | File | Righe | Ruolo |
 |---|---|---|
 | `main.py` | ~2200 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
-| `main_moderno.py` | ~380 | Versione con grafica moderna: `ScadenzeAppModerna` eredita da `ScadenzeApp` e ridisegna solo la finestra principale con customtkinter (§13) |
 | `ricorrenze.py` | ~70 | `prossima_occorrenza()`: calcola la prossima data di una scadenza ricorrente |
 | `notifiche.py` | ~175 | Controllo scadenze e invio notifiche desktop con `plyer` |
 | `google_calendar.py` | ~545 | OAuth Google, export eventi (singoli e in blocco, con RRULE), import eventi |
-| `immagine_settimana.py` | ~230 | Immagine a colori degli impegni della settimana e copia negli appunti (Pillow + ctypes) |
+| `immagine_settimana.py` | ~720 | Immagini con Pillow: impegni della settimana (elenco/calendario), report medicinali e PDF A4; copia negli appunti (ctypes) |
 | `stato_veicolo.json` | — | Tutti i dati |
 | `backup/` | — | Una copia di `stato_veicolo.json` al giorno (`stato_veicolo_AAAA-MM-GG.json`), ultime 30 (esclusa da git) |
 | `avvia_scadenze.bat` | — | Avvio con installazione automatica delle librerie mancanti |
-| `requirements.txt` | — | `plyer`, `Pillow`, `customtkinter` + librerie Google |
+| `requirements.txt` | — | `plyer`, `Pillow` + librerie Google |
 | `credentials.json` / `client_secret_*.json` | — | Credenziali OAuth (escluse da git) |
 | `token.pickle` | — | Token Google salvato dopo il primo login (escluso da git) |
 
@@ -116,6 +116,22 @@ main.py ──► ricorrenze.py
         "fino_al": "2027-06-29"            // ISO oppure null = senza fine
       }
     }
+  },
+
+  "medicinali": [                          // scheda 💊 Medicinali (§8b)
+    {
+      "nome": "Sciroppo tosse",
+      "scadenza": "2026-12-31",            // ISO; con solo_mese è l'ultimo giorno del mese
+      "solo_mese": true,                   // scritta come "12-2026" (come sulla confezione)
+      "apertura": "2026-10-20",            // ISO oppure null = confezione chiusa
+      "durata_apertura": "6 mesi",         // "N giorni" | "N mesi" oppure null
+      "posizione": "sotto"                 // "sotto" | "intermedio" | "sopra" | null
+    }
+  ],
+
+  "impostazioni": {
+    "ordine_medicinali": ["scadenza", false],  // colonna ("nome", "scadenza", "apertura", "posizione"), invertito
+    "report_mostra_stato": true                // report medicinali con o senza colonna Stato
   }
 }
 ```
@@ -189,6 +205,37 @@ La ricorrenza si imposta con il pulsante 🔁 su ogni riga (finestra `_dialog_ri
 - Aggiunta, eliminazione, rinomina, cambio veicolo, km e ricorrenza **salvano subito**.
 - Le modifiche fatte **a mano nei campi** (date, orari, km di tagliando…) vengono salvate **solo** premendo il relativo pulsante blu "Salva …". Se si cambia veicolo o si aggiunge una voce prima di aver salvato, l'interfaccia viene ricostruita dal file e quelle modifiche si perdono.
 - Dopo quasi ogni operazione l'interfaccia viene distrutta e ricostruita da zero (`ricarica_interfaccia()`), riaprendo di default la scheda *Scadenze Personali* (o *Veicoli* se si è cambiato veicolo).
+
+---
+
+## 8b. Scheda Medicinali
+
+Terza scheda, **💊 Medicinali** (`crea_tab_medicinali()` in `main.py`). I medicinali stanno nell'elenco `"medicinali"` del file dati, separato dalle scadenze personali: per questo notifiche, Google Calendar, Copia settimana/immagine li ignorano senza bisogno di altro codice.
+
+- **Campi:** nome, scadenza, data di apertura (facoltativa), durata dopo l'apertura (facoltativa), posizione (facoltativa: Piano sotto / intermedio / sopra, `POSIZIONI_MEDICINALI`).
+- **Scadenza:** `GG-MM-AAAA` oppure solo `MM-AAAA` / `MM-AA` come sulle confezioni (`interpreta_scadenza_medicinale()`): con solo mese e anno vale l'ultimo giorno del mese e viene mostrata di nuovo come `MM-AAAA` (campo `solo_mese`).
+- **Apertura:** `GG-MM-AAAA` (anche senza anno, come la barra "Dal:"); vuota = confezione chiusa.
+- **Durata dopo l'apertura:** colonna "Dopo apertura", come sul foglietto: `28`, `28 giorni`, `28gg`, `4 settimane` (→ 28 giorni), `6 mesi`, `6m`, `1 anno` (→ 12 mesi) — `interpreta_durata()`, salvata normalizzata (`testo_durata()`). Con confezione aperta il limite è `fine_dopo_apertura()` = apertura + durata (i mesi sono mesi di calendario: 31/01 + 1 mese = 28/02).
+- **Scadenza effettiva** (`_scadenza_effettiva()`): la data che arriva prima tra scadenza stampata e limite dopo l'apertura. È quella usata per lo stato e per l'ordinamento "Scadenza", così in cima c'è ciò che va usato o buttato per primo.
+- **Ordine:** clic sul titolo di una colonna (`ordina_medicinali()`): per nome (maiuscole/minuscole ignorate), scadenza, apertura o posizione (sotto → intermedio → sopra); un secondo clic inverte (▲/▼). Con apertura e posizione, le voci senza valore restano sempre in fondo, in ordine di scadenza. La scelta è salvata in `impostazioni.ordine_medicinali` e ricordata alla riapertura; predefinito: scadenza ▲. Il riordino ridisegna solo le righe (`_riempi_griglia_medicinali(conserva_testi=True)`) e lascia nei campi le date scritte e non ancora salvate (l'ordine però usa le date salvate).
+- **Posizione:** menu a tendina (`ttk.Combobox` in sola lettura) che **salva subito** alla scelta (`_cambia_posizione_medicinale()`); la rotellina del mouse sopra il menu scorre la pagina invece di cambiare piano. All'aggiunta la chiede una finestrella con un pulsante per piano (`_scegli_posizione_medicinale()`).
+- **Stato** (due righe):
+  - se decide la scadenza stampata: giorni alla scadenza (rosso scaduto/oggi, arancione entro `SOGLIA_GIORNI_PREAVVISO` = 30 giorni, verde oltre) e sotto "aperto da N giorni" oppure, se chiuso, "dopo l'apertura dura …";
+  - se decide l'apertura: "Da usare entro N giorni (fino al GG-MM-AAAA)" (arancione entro `GIORNI_PREAVVISO_APERTO` = 7 giorni, verde oltre), poi "⚠️ Ultimo giorno di uso" e "⚠️ DA BUTTARE" in rosso.
+- I nomi molto lunghi vanno a capo per tenere la tabella stretta.
+- Lo stato è calcolato da `_stato_medicinale(voce)`, usato sia dalla scheda sia dal report.
+
+### 🖨️ Report medicinali (stampa / WhatsApp)
+
+Pulsante in alto nella scheda (`report_medicinali()`):
+
+1. `_righe_report_medicinali()` prepara le righe **nell'ordine scelto nella scheda** (dati salvati) e il riepilogo: numero di medicinali, quanti scaduti o da buttare (rosso), quanti in scadenza (arancione), oppure "tutto in regola". Nel report "156 giorni" diventa "Scade tra 156 giorni" e il simbolo ⚠️ viene tolto.
+2. `immagine_settimana.crea_report_medicinali()` disegna con Pillow una tabella (Medicinale, Scadenza, Aperto il, Dopo apertura, Posizione, Stato) con barretta colorata a sinistra di ogni riga, righe alternate, nomi e stato a capo se lunghi. Viene salvata in `report_medicinali.png` e **copiata subito negli appunti**.
+3. Finestra di anteprima con:
+   - **📋 Copia per WhatsApp**: ricopia l'immagine negli appunti (stessa funzione dell'immagine settimanale);
+   - spunta **Mostra lo stato**: se tolta, `crea_report_medicinali(..., mostra_stato=False)` disegna la tabella senza colonna Stato (colonne `COLONNE_REPORT_SENZA_STATO`, più larghe), con barrette grigie e nel riepilogo solo il numero di medicinali. Vale per anteprima, immagine per WhatsApp e PDF; la scelta è salvata in `impostazioni.report_mostra_stato` (predefinito: con stato);
+   - **🖨️ Stampa (PDF)**: rigenera il report diviso in pagine (`altezza_pagina_report_a4()`), lo mette su fogli A4 verticali a 200 dpi con margini (`salva_pdf_a4()`), salva `report_medicinali.pdf` e lo apre con il programma predefinito (`os.startfile`): da lì Ctrl+P. Se il PDF è aperto in un altro programma e non si può sovrascrivere, compare un avviso.
+- **Pulsanti:** "+ Nuovo Medicinale" (chiede nome, scadenza, apertura, posizione), "Salva Medicinali" (salva le date modificate nei campi e riordina; con una data sbagliata non salva nulla e dice quale), ✏️ rinomina, ✕ elimina. Dopo ogni operazione resta aperta la scheda Medicinali; la rotellina del mouse scorre anche questa scheda.
 
 ---
 
@@ -320,7 +367,8 @@ Sab 24/10  Compleanno nonna
 | Nome del calendario Google | stringa `'Famiglia'` in `google_calendar.py` (3 punti) e `main.py` (import) |
 | Promemoria degli eventi | `PROMEMORIA_RICORRENTI` / `PROMEMORIA_SINGOLI` in `google_calendar.py` |
 | Colore di sfondo (versione classica) | `COLORE_SFONDO` in `main.py` (es. `"#f0f0f0"` chiaro, `"#cfd8dc"` grigio-azzurro, `"#b0bec5"` più scuro). I colori del testo di stato sono scuriti in `_imposta_stato()` per restare leggibili |
-| Velocità scroll (rotellina) scheda Personali | `SCROLL_PIXEL_PER_UNITA` / `SCROLL_UNITA_PER_SCATTO` in `main.py` |
+| Soglia arancione dei medicinali | la stessa `SOGLIA_GIORNI_PREAVVISO` delle altre scadenze |
+| Velocità scroll (rotellina) schede Personali e Medicinali | `SCROLL_PIXEL_PER_UNITA` / `SCROLL_UNITA_PER_SCATTO` in `main.py` |
 | Stima km/giorno | `km_medi_al_giorno = 50` in `esporta_scadenze_veicolo()` |
 | Parole chiave per le sezioni | `_is_visita_personale`, `_is_visita_da_prenotare`, `_is_festa_compleanno` in `main.py` |
 | Dati iniziali di esempio | `inizializza_db()` in `main.py` |
@@ -370,26 +418,8 @@ La voce viene messa tra le visite solo se il nome contiene "visita" o "medic". U
 
 ---
 
-## 13. Versione moderna (`main_moderno.py`)
+## 13. Versione moderna (eliminata)
 
-**Stato (23/10/2026): provata e messa da parte**, l'interfaccia classica è stata preferita (colore di sfondo regolabile con `COLORE_SFONDO`). `avvia_moderno.bat` è stato tolto; per riprovarla: `python main_moderno.py`. Usa lo stesso `stato_veicolo.json` della versione classica: si può passare dall'una all'altra in qualsiasi momento (meglio non tenerle aperte insieme, altrimenti l'ultima che salva sovrascrive l'altra).
+Il 23/10/2026 è stata provata una versione con grafica moderna (`main_moderno.py`, customtkinter: angoli arrotondati, tema scuro), che ereditava la logica da `ScadenzeApp` e ridisegnava solo la finestra principale. È stata eliminata: si è preferita l'interfaccia classica, che è anche molto più veloce (ridisegno 0,05 s contro circa 0,45 s).
 
-**Come è fatta.** `ScadenzeAppModerna` *eredita* da `ScadenzeApp` (main.py) e ridefinisce solo i metodi che disegnano la finestra principale:
-
-| Metodo ridefinito | Cosa fa |
-|---|---|
-| `_prepara_finestra()` | titolo, dimensioni, caratteri `CTkFont` |
-| `crea_interfaccia()` | schede `CTkTabview` (🚗 Veicoli, 📋 Scadenze Personali) |
-| `crea_tab_veicoli()`, `crea_tab_personali()`, `_crea_riga_personale()` | riquadri arrotondati con barra colorata, campi `CTkEntry`, `CTkCheckBox`, `CTkOptionMenu`, pulsanti `CTkButton`, area `CTkScrollableFrame` |
-| `_imposta_stato()`, `_abilita_campo()` | aggiornano testo/colore di stato e attivano i campi orario con le opzioni di customtkinter |
-
-Tutto il resto (salvataggi, aggiunte, eliminazioni, ricorrenze, notifiche, Google Calendar, Copia settimana/immagine, Modifica impegni, finestre di dialogo) **è il codice di main.py**: una correzione fatta lì vale per entrambe le versioni. Per questo `main.py` usa i piccoli metodi `_prepara_finestra`, `_imposta_stato` e `_abilita_campo` invece di modificare i widget direttamente.
-
-**Velocità.** I widget di customtkinter sono disegnati uno per uno (angoli arrotondati), quindi costano di più. Per contenere il tempo di ridisegno:
-- si costruisce solo la scheda visibile; l'altra viene costruita la prima volta che la si apre (`_costruisci_scheda_visibile`);
-- l'area scorrevole viene riempita prima di essere mostrata;
-- i pulsantini ✏️ ✕ 📅 🔁 delle righe sono pulsanti tkinter piatti (circa 25 volte più leggeri).
-
-Misure nella prova (finestra virtuale, 18 scadenze personali): apertura e ridisegno circa **0,45 s** contro 0,05 s della versione classica.
-
-**Tema.** `TEMA = "light"` in cima a `main_moderno.py`; si può mettere `"dark"` o `"system"` (segue Windows). Le finestre secondarie (Copia settimana, immagine, ricorrenza, domande) restano in stile classico chiaro.
+In `main.py` restano i piccoli metodi `_prepara_finestra()`, `_imposta_stato()` e `_abilita_campo()` nati per quella prova: non danno fastidio e tengono in un punto solo il modo di aggiornare i widget (es. i colori del testo di stato).

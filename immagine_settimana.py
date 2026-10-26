@@ -464,6 +464,179 @@ def crea_immagine_calendario(eventi, inizio, giorni=7, oggi=None, legenda=None):
     return img
 
 
+# ---------------------------------------------------------------- report medicinali
+
+LARGHEZZA_REPORT = 900
+COLORI_REPORT = {"red": "#C62828", "orange": "#E65100", "green": "#2E7D32", "gray": "#757575"}
+# (titolo, x iniziale, larghezza) delle colonne, in pixel non scalati
+COLONNE_REPORT = (
+    ("Medicinale", 0, 235),
+    ("Scadenza", 245, 92),
+    ("Aperto il", 342, 92),
+    ("Dopo apertura", 439, 108),
+    ("Posizione", 566, 104),
+    ("Stato", 676, 198),
+)
+# Senza la colonna Stato le altre si allargano
+COLONNE_REPORT_SENZA_STATO = (
+    ("Medicinale", 0, 320),
+    ("Scadenza", 335, 110),
+    ("Aperto il", 455, 110),
+    ("Dopo apertura", 575, 130),
+    ("Posizione", 715, 135),
+)
+
+
+def crea_report_medicinali(righe, oggi=None, titolo="Medicinali di casa", sottotitolo="",
+                           riepilogo=None, altezza_pagina=None, mostra_stato=True):
+    """
+    Report a tabella dei medicinali, adatto a WhatsApp e alla stampa.
+
+    righe:     lista di dict {"nome", "scadenza", "apertura", "durata", "posizione", "stato", "colore"}
+               (testi già pronti; "stato" può avere due righe separate da \n; "colore" = red/orange/green/gray)
+    riepilogo: lista di (testo, colore) mostrati sotto il titolo, es. [("9 medicinali", "gray"), ...]
+    altezza_pagina: se indicata (pixel non scalati), divide le righe in più immagini (pagine)
+                    alte al massimo così; altrimenti restituisce una sola immagine.
+    mostra_stato: False = senza colonna Stato e senza colori di stato (elenco semplice da stampare).
+    Restituisce una lista di immagini PIL.
+    """
+    oggi = oggi or date.today()
+    s = SCALA
+    f_titolo = _carica_font(26, True)
+    f_sotto = _carica_font(14)
+    f_riepilogo = _carica_font(15, True)
+    f_intest = _carica_font(13, True)
+    f_nome = _carica_font(15, True)
+    f_testo = _carica_font(14)
+    f_stato = _carica_font(13, True)
+    f_piede = _carica_font(12)
+
+    margine = 24
+    alt_riga_testo = 20
+    pad_riga = 10
+    x_tabella = margine + 8
+    larghezza = LARGHEZZA_REPORT
+    colonne = COLONNE_REPORT if mostra_stato else COLONNE_REPORT_SENZA_STATO
+
+    # Misura e manda a capo i testi per sapere quanto è alta ogni riga
+    prova = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+    impaginate = []
+    for r in righe:
+        celle = [
+            (_a_capo(prova, r["nome"], f_nome, colonne[0][2] * s, 3), f_nome, "#212121"),
+            ([r.get("scadenza") or ""], f_testo, "#212121"),
+            ([r.get("apertura") or "—"], f_testo, "#212121" if r.get("apertura") else "#9E9E9E"),
+            ([r.get("durata") or "—"], f_testo, "#212121" if r.get("durata") else "#9E9E9E"),
+            ([r.get("posizione") or "—"], f_testo, "#212121" if r.get("posizione") else "#9E9E9E"),
+        ]
+        if mostra_stato:
+            righe_stato = []
+            for parte in (r.get("stato") or "").split("\n"):
+                righe_stato += _a_capo(prova, parte, f_stato, colonne[5][2] * s, 3)
+            celle.append((righe_stato, f_stato, COLORI_REPORT.get(r.get("colore"), "#212121")))
+        n_righe = max(len(c[0]) for c in celle) or 1
+        impaginate.append((celle, max(42, n_righe * alt_riga_testo + 2 * pad_riga),
+                           r.get("colore") if mostra_stato else None))
+
+    alt_testata = 108 if riepilogo else 84
+    alt_intest = 34
+    alt_piede = 40
+
+    # Suddivisione in pagine
+    pagine = []
+    corrente, alt_corrente = [], 0
+    limite = (altezza_pagina - alt_testata - alt_intest - alt_piede - 20) if altezza_pagina else None
+    for elem in impaginate:
+        if limite and corrente and alt_corrente + elem[1] > limite:
+            pagine.append(corrente)
+            corrente, alt_corrente = [], 0
+        corrente.append(elem)
+        alt_corrente += elem[1]
+    pagine.append(corrente)
+
+    immagini = []
+    for numero, pagina in enumerate(pagine, start=1):
+        alt_righe = sum(e[1] for e in pagina) if pagina else 50
+        altezza = alt_testata + alt_intest + alt_righe + alt_piede + 20
+        img = Image.new("RGB", (larghezza * s, altezza * s), "white")
+        d = ImageDraw.Draw(img)
+
+        # Titolo, sottotitolo e riepilogo
+        d.text((margine * s, 16 * s), titolo, font=f_titolo, fill="#212121")
+        d.text((margine * s, 52 * s), sottotitolo or f"Situazione al {oggi.strftime('%d/%m/%Y')}",
+               font=f_sotto, fill=TESTO_CHIARO)
+        if riepilogo:
+            x = margine * s
+            for i, (testo, colore) in enumerate(riepilogo):
+                if i:
+                    d.text((x, 78 * s), "  ·  ", font=f_riepilogo, fill="#9E9E9E")
+                    x += _larghezza(d, "  ·  ", f_riepilogo)
+                d.text((x, 78 * s), testo, font=f_riepilogo, fill=COLORI_REPORT.get(colore, colore))
+                x += _larghezza(d, testo, f_riepilogo)
+
+        # Intestazione della tabella
+        y = alt_testata
+        d.rectangle((margine * s, y * s, (larghezza - margine) * s, (y + alt_intest) * s), fill="#ECEFF1")
+        for titolo_col, x0, _ in colonne:
+            d.text(((x_tabella + x0) * s, (y + alt_intest / 2) * s), titolo_col, font=f_intest,
+                   fill="#455A64", anchor="lm")
+        y += alt_intest
+
+        # Righe
+        if not pagina:
+            d.text((x_tabella * s, (y + 25) * s), "Nessun medicinale inserito", font=f_testo,
+                   fill=TESTO_CHIARO, anchor="lm")
+        for i, (celle, alt, colore) in enumerate(pagina):
+            if i % 2:
+                d.rectangle((margine * s, y * s, (larghezza - margine) * s, (y + alt) * s), fill="#FAFAFA")
+            # barretta colorata a sinistra con lo stato
+            d.rectangle((margine * s, (y + 4) * s, (margine + 4) * s, (y + alt - 4) * s),
+                        fill=COLORI_REPORT.get(colore, "#BDBDBD"))
+            for (testi, font, colore_testo), (_, x0, _) in zip(celle, colonne):
+                yt = y + pad_riga
+                for t in testi:
+                    d.text(((x_tabella + x0) * s, yt * s), t, font=font, fill=colore_testo)
+                    yt += alt_riga_testo
+            y += alt
+            d.line((margine * s, y * s, (larghezza - margine) * s, y * s), fill=SEPARATORE, width=s)
+
+        # Piede
+        piede = f"Gestione Scadenze  ·  creato il {oggi.strftime('%d/%m/%Y')}"
+        if len(pagine) > 1:
+            piede += f"  ·  pagina {numero} di {len(pagine)}"
+        d.text(((larghezza - margine) * s, (altezza - alt_piede / 2) * s), piede, font=f_piede,
+               fill=TESTO_CHIARO, anchor="rm")
+        immagini.append(img)
+    return immagini
+
+
+# Pagina A4 verticale a 200 dpi
+A4_DPI = 200
+A4_PIXEL = (1654, 2339)
+MARGINE_A4 = 70
+
+
+def altezza_pagina_report_a4():
+    """Altezza massima (pixel non scalati) di una pagina del report perché stia in un foglio A4."""
+    larghezza_utile = A4_PIXEL[0] - 2 * MARGINE_A4
+    altezza_utile = A4_PIXEL[1] - 2 * MARGINE_A4
+    return int(altezza_utile * LARGHEZZA_REPORT / larghezza_utile)
+
+
+def salva_pdf_a4(pagine, percorso):
+    """Mette ogni immagine su un foglio A4 (adattata alla larghezza, con margini) e salva un PDF."""
+    fogli = []
+    larghezza_utile = A4_PIXEL[0] - 2 * MARGINE_A4
+    for img in pagine:
+        rapporto = larghezza_utile / img.width
+        ridotta = img.resize((larghezza_utile, int(img.height * rapporto)), Image.LANCZOS)
+        foglio = Image.new("RGB", A4_PIXEL, "white")
+        foglio.paste(ridotta, (MARGINE_A4, MARGINE_A4))
+        fogli.append(foglio)
+    fogli[0].save(percorso, "PDF", resolution=A4_DPI, save_all=True, append_images=fogli[1:])
+    return percorso
+
+
 # ---------------------------------------------------------------- appunti (Windows)
 
 def copia_immagine_negli_appunti(img):

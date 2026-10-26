@@ -1,3 +1,4 @@
+import calendar
 import glob
 import json
 import os
@@ -197,6 +198,69 @@ def interpreta_data(testo, riferimento):
     return min(candidati, key=lambda d: abs((d - riferimento).days)) if candidati else None
 
 
+def interpreta_scadenza_medicinale(testo):
+    """Data di scadenza di un medicinale: GG-MM-AAAA oppure solo MM-AAAA / MM-AA come sulle confezioni.
+
+    Con solo mese e anno la scadenza è l'ultimo giorno del mese.
+    Restituisce (date, solo_mese) oppure (None, False) se non valida.
+    """
+    parti = testo.strip().replace("-", "/").replace(".", "/").split("/")
+    if len(parti) == 2 and all(p.isdigit() for p in parti) and len(parti[1]) in (2, 4):
+        mese, anno = int(parti[0]), int(parti[1])
+        if len(parti[1]) == 2:
+            anno += 2000
+        if 1 <= mese <= 12:
+            ultimo_giorno = calendar.monthrange(anno, mese)[1]
+            return date(anno, mese, ultimo_giorno), True
+        return None, False
+    if len(parti) == 3:
+        giorno = interpreta_data(testo, date.today())
+        return (giorno, False) if giorno else (None, False)
+    return None, False
+
+
+def interpreta_durata(testo):
+    """Durata dopo l'apertura: '28', '28 giorni', '28gg', '6 mesi', '6m', '1 anno', '4 settimane'.
+
+    Restituisce (numero, "giorni" | "mesi") oppure None se non valida. Anni e settimane
+    vengono convertiti in mesi e giorni.
+    """
+    t = testo.strip().lower().rstrip(".")
+    m = re.fullmatch(r"(\d+)\s*([a-zà]*)", t)
+    if not m or int(m.group(1)) <= 0:
+        return None
+    n, unita = int(m.group(1)), m.group(2)
+    if unita in ("", "g", "gg", "giorno", "giorni"):
+        return n, "giorni"
+    if unita in ("s", "sett", "settimana", "settimane"):
+        return n * 7, "giorni"
+    if unita in ("m", "mese", "mesi"):
+        return n, "mesi"
+    if unita in ("a", "anno", "anni"):
+        return n * 12, "mesi"
+    return None
+
+
+def n_giorni(n):
+    """'1 giorno' / 'N giorni'."""
+    return "1 giorno" if n == 1 else f"{n} giorni"
+
+
+def testo_durata(n, unita):
+    if unita == "mesi":
+        return "1 mese" if n == 1 else f"{n} mesi"
+    return "1 giorno" if n == 1 else f"{n} giorni"
+
+
+def fine_dopo_apertura(apertura, n, unita):
+    """Ultimo giorno di uso dopo l'apertura (a fine mese se il giorno non esiste, es. 31/01 + 1 mese = 28/02)."""
+    if unita == "giorni":
+        return apertura + timedelta(days=n)
+    mese_totale = apertura.month - 1 + n
+    anno, mese = apertura.year + mese_totale // 12, mese_totale % 12 + 1
+    return date(anno, mese, min(apertura.day, calendar.monthrange(anno, mese)[1]))
+
+
 class ScadenzeApp:
     def __init__(self, root):
         self.root = root
@@ -212,6 +276,9 @@ class ScadenzeApp:
         if "scadenze_personali" not in self.dati_completi:
             self.dati_completi["scadenze_personali"] = {}
             salva_dati(self.dati_completi)
+
+        # Elenco dei medicinali (scheda 💊 Medicinali): nessuna notifica, solo promemoria
+        self.dati_completi.setdefault("medicinali", [])
         
         self.veicolo_corrente = self.dati_completi.get("veicolo_selezionato", list(self.dati_completi["veicoli"].keys())[0])
         
@@ -663,9 +730,16 @@ class ScadenzeApp:
         # Crea contenuto tab scadenze personali
         self.crea_tab_personali(tab_personali)
 
-        # Se richiesto, resta sul tab Veicoli (es. cambio veicolo)
+        # Tab 3: Medicinali
+        tab_medicinali = tk.Frame(self.notebook, bg=COLORE_SFONDO)
+        self.notebook.add(tab_medicinali, text="💊 Medicinali")
+        self.crea_tab_medicinali(tab_medicinali)
+
+        # Se richiesto, resta sul tab Veicoli (es. cambio veicolo) o Medicinali
         if tab_da_aprire == "veicoli":
             self.notebook.select(tab_veicoli)
+        elif tab_da_aprire == "medicinali":
+            self.notebook.select(tab_medicinali)
         else:
             # Default: tab Scadenze Personali
             self.notebook.select(tab_personali)
@@ -1372,16 +1446,16 @@ class ScadenzeApp:
                   font=self.normal_font, width=10).pack(side=tk.LEFT, padx=5)
 
     def _scroll_rotellina(self, event):
-        """Scorre la scheda Scadenze Personali con la rotellina del mouse."""
+        """Scorre con la rotellina la scheda aperta (Scadenze Personali o Medicinali)."""
         try:
-            canvas = getattr(self, "canvas_personali", None)
-            if canvas is None or not canvas.winfo_exists():
-                return
             # Ignora la rotellina nelle finestre di dialogo (es. Ricorrenza)
             if event.widget.winfo_toplevel() is not self.root:
                 return
-            # Scorre solo se è aperta la scheda Scadenze Personali
-            if self.notebook.index(self.notebook.select()) != 1:
+            # Scorre solo nelle schede con l'area scorrevole
+            scheda = self.notebook.index(self.notebook.select())
+            canvas = {1: getattr(self, "canvas_personali", None),
+                      2: getattr(self, "canvas_medicinali", None)}.get(scheda)
+            if canvas is None or not canvas.winfo_exists():
                 return
             # Su Windows ogni "scatto" della rotellina vale delta = 120
             passi = -event.delta / 120 * SCROLL_UNITA_PER_SCATTO
@@ -1389,6 +1463,490 @@ class ScadenzeApp:
             canvas.yview_scroll(passi, "units")
         except (tk.TclError, AttributeError):
             pass
+
+    # ------------------------------------------------ scheda Medicinali
+
+    @staticmethod
+    def _testo_scadenza_medicinale(voce):
+        """Scadenza come l'ha scritta l'utente: '03-2027' (solo mese) oppure '15-03-2027'."""
+        scadenza = date.fromisoformat(voce["scadenza"])
+        return scadenza.strftime("%m-%Y") if voce.get("solo_mese") else scadenza.strftime("%d-%m-%Y")
+
+    def crea_tab_medicinali(self, parent):
+        """Scheda con i medicinali in ordine di scadenza (solo promemoria, nessuna notifica)."""
+        scroll_frame = tk.Frame(parent, bg=COLORE_SFONDO)
+        scroll_frame.pack(fill=tk.BOTH, expand=True)
+        canvas = tk.Canvas(scroll_frame, bg=COLORE_SFONDO, highlightthickness=0,
+                           yscrollincrement=SCROLL_PIXEL_PER_UNITA)
+        self.canvas_medicinali = canvas
+        scrollbar = ttk.Scrollbar(scroll_frame, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        main_frame = tk.Frame(canvas, bg=COLORE_SFONDO)
+        finestra = canvas.create_window((0, 0), window=main_frame, anchor="nw")
+        main_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(finestra, width=e.width))
+
+        testata = tk.Frame(main_frame, bg=COLORE_SFONDO)
+        testata.pack(fill=tk.X, pady=(0, 10))
+        tk.Label(testata, text="Scadenza Medicinali", font=self.title_font, bg=COLORE_SFONDO).pack(side=tk.LEFT, padx=5)
+        tk.Label(testata, text="Solo promemoria: niente notifiche, non va su Google Calendar",
+                 font=self.normal_font, bg=COLORE_SFONDO, fg="gray").pack(side=tk.LEFT, padx=15)
+        tk.Button(testata, text="🖨️ Report (stampa / WhatsApp)", command=self.report_medicinali,
+                  bg="#455A64", fg="white", font=self.normal_font).pack(side=tk.RIGHT, padx=5)
+
+        riquadro = tk.LabelFrame(main_frame, text="Medicinali", font=self.title_font,
+                                 bg=COLORE_SFONDO, padx=10, pady=10)
+        riquadro.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        tk.Label(riquadro, text="Scadenza: GG-MM-AAAA oppure solo MM-AAAA come sulla confezione  ·  "
+                                "Aperto il: lascia vuoto se la confezione è ancora chiusa  ·  "
+                                "Dopo apertura: es. 28 giorni, 6 mesi (dal foglietto)\n"
+                                "La posizione si salva appena la scegli dal menu  ·  "
+                                "Clic su un titolo (Medicinale, Scadenza, Aperto il, Posizione) per cambiare l'ordine, "
+                                "un secondo clic lo inverte",
+                 font=self.normal_font, bg=COLORE_SFONDO, fg="gray", justify=tk.LEFT).pack(anchor=tk.W, pady=(0, 6))
+        self._griglia_medicinali = tk.Frame(riquadro, bg=COLORE_SFONDO)
+        self._griglia_medicinali.pack(fill=tk.BOTH, expand=True)
+        self.medicinali_widgets = {}
+        self._riempi_griglia_medicinali()
+
+        pulsanti = tk.Frame(riquadro, bg=COLORE_SFONDO)
+        pulsanti.pack(fill=tk.X, pady=(10, 0))
+        tk.Button(pulsanti, text="+ Nuovo Medicinale", command=self.aggiungi_medicinale,
+                  bg="#4CAF50", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+        tk.Button(pulsanti, text="Salva Medicinali", command=self.salva_medicinali,
+                  bg="#2196F3", fg="white", font=self.normal_font).pack(side=tk.LEFT, padx=5)
+
+    # Ordinamento: chiave "scadenza", "apertura" o "nome"; ricordato nel file dati
+    COLONNE_MEDICINALI = (("Medicinale", "nome"), ("Scadenza", "scadenza"), ("Aperto il", "apertura"),
+                          ("Dopo apertura", None), ("Posizione", "posizione"), ("Stato", None))
+    GIORNI_PREAVVISO_APERTO = 7  # arancione quando mancano al massimo 7 giorni al limite dopo l'apertura
+    # Dove si trova il medicinale (valore salvato, testo mostrato), nell'ordine usato per ordinare
+    POSIZIONI_MEDICINALI = (("sotto", "Piano sotto"), ("intermedio", "Piano intermedio"), ("sopra", "Piano sopra"))
+    SENZA_POSIZIONE = "—"
+
+    def _ordine_medicinali(self):
+        chiave, inverso = self.dati_completi.get("impostazioni", {}).get("ordine_medicinali", ["scadenza", False])
+        if chiave not in ("scadenza", "apertura", "nome", "posizione"):
+            chiave, inverso = "scadenza", False
+        return chiave, bool(inverso)
+
+    @staticmethod
+    def _scadenza_effettiva(voce):
+        """(data, limite_apertura): la data che arriva prima tra la scadenza della confezione
+        e apertura + durata dopo l'apertura. limite_apertura è True se decide l'apertura."""
+        scadenza = date.fromisoformat(voce["scadenza"])
+        durata = interpreta_durata(voce.get("durata_apertura") or "")
+        if voce.get("apertura") and durata:
+            limite = fine_dopo_apertura(date.fromisoformat(voce["apertura"]), *durata)
+            if limite < scadenza:
+                return limite, True
+        return scadenza, False
+
+    def _medicinali_ordinati(self, chiave, inverso):
+        lista = list(self.dati_completi.get("medicinali", []))
+        effettiva = lambda v: self._scadenza_effettiva(v)[0].isoformat()
+        if chiave == "nome":
+            return sorted(lista, key=lambda v: (v["nome"].casefold(), effettiva(v)), reverse=inverso)
+        if chiave == "posizione":
+            # Piano sotto, intermedio, sopra; quelli senza posizione restano sempre in fondo
+            ordine = {k: i for i, (k, _) in enumerate(self.POSIZIONI_MEDICINALI)}
+            con_posizione = sorted((v for v in lista if v.get("posizione") in ordine),
+                                   key=lambda v: (ordine[v["posizione"]], effettiva(v)), reverse=inverso)
+            senza = sorted((v for v in lista if v.get("posizione") not in ordine),
+                           key=lambda v: (effettiva(v), v["nome"].casefold()))
+            return con_posizione + senza
+        if chiave == "apertura":
+            # Le confezioni ancora chiuse restano sempre in fondo, in ordine di scadenza
+            aperti = sorted((v for v in lista if v.get("apertura")),
+                            key=lambda v: (v["apertura"], effettiva(v)), reverse=inverso)
+            chiusi = sorted((v for v in lista if not v.get("apertura")),
+                            key=lambda v: (effettiva(v), v["nome"].casefold()))
+            return aperti + chiusi
+        return sorted(lista, key=lambda v: (effettiva(v), v["nome"].casefold()), reverse=inverso)
+
+    def ordina_medicinali(self, chiave):
+        """Clic su un titolo di colonna: ordina per quella colonna, un secondo clic inverte l'ordine."""
+        attuale, inverso = self._ordine_medicinali()
+        inverso = (not inverso) if chiave == attuale else False
+        self.dati_completi.setdefault("impostazioni", {})["ordine_medicinali"] = [chiave, inverso]
+        salva_dati(self.dati_completi)
+        self._riempi_griglia_medicinali(conserva_testi=True)
+
+    def _riempi_griglia_medicinali(self, conserva_testi=False):
+        """(Ri)disegna le righe dei medicinali nell'ordine scelto.
+
+        Con conserva_testi=True le date scritte nei campi e non ancora salvate restano al loro posto.
+        """
+        griglia = self._griglia_medicinali
+        testi = {}
+        if conserva_testi:
+            for w in self.medicinali_widgets.values():
+                testi[id(w["voce"])] = (w["entry_scadenza"].get(), w["entry_apertura"].get(),
+                                        w["entry_durata"].get())
+        for figlio in griglia.winfo_children():
+            figlio.destroy()
+        self.medicinali_widgets = {}
+
+        chiave, inverso = self._ordine_medicinali()
+        medicinali = self._medicinali_ordinati(chiave, inverso)
+        if not medicinali:
+            tk.Label(griglia, text="Nessun medicinale inserito", font=self.normal_font,
+                     bg=COLORE_SFONDO, fg="gray").grid(row=0, column=0, sticky=tk.W, pady=10)
+            return
+
+        for c, (titolo, chiave_col) in enumerate(self.COLONNE_MEDICINALI):
+            attiva = chiave_col == chiave
+            testo = f"{titolo} {'▼' if inverso else '▲'}" if attiva else titolo
+            etichetta = tk.Label(griglia, text=testo, font=self.title_font, bg=COLORE_SFONDO,
+                                 fg="#1565C0" if attiva else "black")
+            etichetta.grid(row=0, column=c, sticky=tk.W, padx=5, pady=(0, 5))
+            if chiave_col:
+                etichetta.configure(cursor="hand2")
+                etichetta.bind("<Button-1>", lambda e, k=chiave_col: self.ordina_medicinali(k))
+
+        for r, voce in enumerate(medicinali, start=1):
+            testo_scadenza, testo_apertura, testo_durata_campo = testi.get(id(voce), (
+                self._testo_scadenza_medicinale(voce),
+                data_iso_a_italiana(voce["apertura"]) if voce.get("apertura") else "",
+                voce.get("durata_apertura") or ""))
+            # I nomi molto lunghi vanno a capo invece di allargare tutta la tabella
+            tk.Label(griglia, text=voce["nome"], font=self.normal_font, bg=COLORE_SFONDO, width=30,
+                     anchor=tk.W, justify=tk.LEFT, wraplength=250).grid(row=r, column=0, sticky=tk.W, padx=5, pady=4)
+            entry_scadenza = tk.Entry(griglia, font=self.normal_font, width=12)
+            entry_scadenza.grid(row=r, column=1, padx=5)
+            entry_scadenza.insert(0, testo_scadenza)
+            entry_apertura = tk.Entry(griglia, font=self.normal_font, width=12)
+            entry_apertura.grid(row=r, column=2, padx=5)
+            entry_apertura.insert(0, testo_apertura)
+            entry_durata = tk.Entry(griglia, font=self.normal_font, width=11)
+            entry_durata.grid(row=r, column=3, padx=5)
+            entry_durata.insert(0, testo_durata_campo)
+            testi_posizione = [t for _, t in self.POSIZIONI_MEDICINALI] + [self.SENZA_POSIZIONE]
+            combo_posizione = ttk.Combobox(griglia, values=testi_posizione, state="readonly",
+                                           width=16, font=self.normal_font)
+            combo_posizione.set(dict(self.POSIZIONI_MEDICINALI).get(voce.get("posizione"), self.SENZA_POSIZIONE))
+            combo_posizione.grid(row=r, column=4, padx=5)
+            combo_posizione.bind("<<ComboboxSelected>>",
+                                 lambda e, v=voce, c=combo_posizione: self._cambia_posizione_medicinale(v, c.get()))
+            # La rotellina sopra il menu scorre la pagina invece di cambiare piano per sbaglio
+            combo_posizione.bind("<MouseWheel>", lambda e: (self._scroll_rotellina(e), "break")[1])
+            label_stato = tk.Label(griglia, text="", font=self.normal_font, bg=COLORE_SFONDO, width=40,
+                                   anchor=tk.W, justify=tk.LEFT)
+            label_stato.grid(row=r, column=5, sticky=tk.W, padx=10)
+            tk.Button(griglia, text="✏️", command=lambda v=voce: self.rinomina_medicinale(v),
+                      bg="#FF9800", fg="white", width=2).grid(row=r, column=6, padx=2)
+            tk.Button(griglia, text="✕", command=lambda v=voce: self.elimina_medicinale(v),
+                      bg="#F44336", fg="white", width=2).grid(row=r, column=7, padx=2)
+            self.medicinali_widgets[r] = {"voce": voce, "entry_scadenza": entry_scadenza,
+                                          "entry_apertura": entry_apertura, "entry_durata": entry_durata,
+                                          "combo_posizione": combo_posizione, "label": label_stato}
+        self._aggiorna_stato_medicinali()
+
+    def _cambia_posizione_medicinale(self, voce, testo):
+        """Scelta dal menu: la posizione si salva subito (non serve 'Salva Medicinali')."""
+        voce["posizione"] = {t: k for k, t in self.POSIZIONI_MEDICINALI}.get(testo)
+        salva_dati(self.dati_completi)
+        if self._ordine_medicinali()[0] == "posizione":
+            self._riempi_griglia_medicinali(conserva_testi=True)
+
+    def _scegli_posizione_medicinale(self, nome):
+        """Finestrella con un pulsante per piano. Restituisce 'sotto'/'intermedio'/'sopra' oppure None."""
+        scelta = {}
+        win = tk.Toplevel(self.root)
+        win.title("Posizione")
+        win.configure(bg=COLORE_SFONDO)
+        win.transient(self.root)
+        win.resizable(False, False)
+        tk.Label(win, text=f"Dove si trova '{nome}'?", font=self.normal_font, bg=COLORE_SFONDO).pack(
+            padx=20, pady=(15, 10))
+        pulsanti = tk.Frame(win, bg=COLORE_SFONDO)
+        pulsanti.pack(padx=20, pady=(0, 15))
+
+        def scegli(valore):
+            scelta["valore"] = valore
+            win.destroy()
+
+        for valore, testo in self.POSIZIONI_MEDICINALI:
+            tk.Button(pulsanti, text=testo, width=16, font=self.normal_font, bg="#2196F3", fg="white",
+                      command=lambda v=valore: scegli(v)).pack(side=tk.LEFT, padx=4)
+        tk.Button(pulsanti, text="Non indicare", width=12, font=self.normal_font,
+                  command=lambda: scegli(None)).pack(side=tk.LEFT, padx=(12, 4))
+        # Al centro della finestra principale
+        win.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
+        y = self.root.winfo_rooty() + (self.root.winfo_height() - win.winfo_height()) // 3
+        win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        win.grab_set()
+        win.wait_window()
+        return scelta.get("valore")
+
+    def _stato_medicinale(self, voce, oggi=None):
+        """(colore, testo) dello stato di un medicinale: giorni alla scadenza effettiva,
+        apertura, durata. Usato dalla scheda e dal report."""
+        oggi = oggi or datetime.now().date()
+        effettiva, limite_apertura = self._scadenza_effettiva(voce)
+        giorni = (effettiva - oggi).days
+        aperto_da = (oggi - date.fromisoformat(voce["apertura"])).days if voce.get("apertura") else None
+        durata = voce.get("durata_apertura")
+
+        if limite_apertura:
+            # Decide la durata dopo l'apertura (es. collirio: 28 giorni)
+            fino_al = effettiva.strftime("%d-%m-%Y")
+            if giorni < 0:
+                colore, stato = "red", f"⚠️ DA BUTTARE\naperto da {n_giorni(aperto_da)} (dura {durata})"
+            elif giorni == 0:
+                colore, stato = "red", f"⚠️ Ultimo giorno di uso\ndura {durata} dopo l'apertura"
+            else:
+                colore = "orange" if giorni <= self.GIORNI_PREAVVISO_APERTO else "green"
+                stato = f"Da usare entro {n_giorni(giorni)} (fino al {fino_al})"
+                stato += f"\naperto da {n_giorni(aperto_da)}" if aperto_da else "\naperto oggi"
+        else:
+            if giorni < 0:
+                colore, stato = "red", f"⚠️ SCADUTO da {n_giorni(abs(giorni))}"
+            elif giorni == 0:
+                colore, stato = "red", "⚠️ Scade oggi"
+            elif giorni <= SOGLIA_GIORNI_PREAVVISO:
+                colore, stato = "orange", f"⚠️ Scade tra {n_giorni(giorni)}"
+            else:
+                colore, stato = "green", n_giorni(giorni)
+            if aperto_da is not None:
+                stato += f"\naperto da {n_giorni(aperto_da)}" if aperto_da > 0 else "\naperto oggi"
+            elif durata:
+                stato += f"\ndopo l'apertura dura {durata}"
+        return colore, stato
+
+    def _aggiorna_stato_medicinali(self):
+        """Giorni alla scadenza (tenendo conto della durata dopo l'apertura). Solo a video, nessuna notifica."""
+        oggi = datetime.now().date()
+        for widgets in getattr(self, "medicinali_widgets", {}).values():
+            colore, stato = self._stato_medicinale(widgets["voce"], oggi)
+            self._imposta_stato(widgets["label"], stato, colore)
+
+    FILE_REPORT_MEDICINALI = "report_medicinali"  # .png e .pdf nella cartella del programma
+
+    def _righe_report_medicinali(self):
+        """Righe del report nell'ordine scelto nella scheda, più il riepilogo in alto."""
+        oggi = datetime.now().date()
+        chiave, inverso = self._ordine_medicinali()
+        posizioni = dict(self.POSIZIONI_MEDICINALI)
+        righe, conteggio = [], {"red": 0, "orange": 0}
+        for voce in self._medicinali_ordinati(chiave, inverso):
+            colore, stato = self._stato_medicinale(voce, oggi)
+            if colore in conteggio:
+                conteggio[colore] += 1
+            righe.append({
+                "nome": voce["nome"],
+                "scadenza": self._testo_scadenza_medicinale(voce),
+                "apertura": data_iso_a_italiana(voce["apertura"]) if voce.get("apertura") else "",
+                "durata": voce.get("durata_apertura") or "",
+                "posizione": posizioni.get(voce.get("posizione"), ""),
+                # "156 giorni" da solo nel report si capisce poco: "Scade tra 156 giorni"
+                "stato": re.sub(r"^(\d+ giorn[oi])", r"Scade tra \1", stato.replace("⚠️ ", "")),
+                "colore": colore,
+            })
+        n = len(righe)
+        riepilogo = [(f"{n} medicinal{'e' if n == 1 else 'i'}", "gray")]
+        if conteggio["red"]:
+            riepilogo.append((f"{conteggio['red']} scadut{'o' if conteggio['red'] == 1 else 'i'} o da buttare", "red"))
+        if conteggio["orange"]:
+            riepilogo.append((f"{conteggio['orange']} in scadenza", "orange"))
+        if not conteggio["red"] and not conteggio["orange"] and n:
+            riepilogo.append(("tutto in regola", "green"))
+        nomi_ordine = {"scadenza": "scadenza", "apertura": "data di apertura", "nome": "nome", "posizione": "posizione"}
+        sottotitolo = (f"Situazione al {oggi.strftime('%d/%m/%Y')}  ·  "
+                       f"in ordine di {nomi_ordine[chiave]} {'▼' if inverso else '▲'}")
+        return righe, riepilogo, sottotitolo
+
+    def report_medicinali(self):
+        """Anteprima del report con i pulsanti per WhatsApp (immagine negli appunti) e per la stampa (PDF A4).
+
+        La spunta "Mostra lo stato" toglie o rimette la colonna Stato (scelta ricordata nel file dati).
+        """
+        if not IMMAGINE_DISPONIBILE:
+            messagebox.showerror("Errore", "Per creare il report serve la libreria Pillow.\n\n"
+                                 "Riavvia con avvia_scadenze.bat, che la installa da sola.")
+            return
+        righe, riepilogo, sottotitolo = self._righe_report_medicinali()
+        oggi = datetime.now().date()
+        base = os.path.join(CARTELLA_PROGRAMMA, self.FILE_REPORT_MEDICINALI)
+        impostazioni = self.dati_completi.setdefault("impostazioni", {})
+        var_stato = tk.BooleanVar(master=self.root, value=impostazioni.get("report_mostra_stato", True))
+        stato = {"immagine": None}
+
+        def parametri():
+            mostra = var_stato.get()
+            # Senza stato, in alto resta solo il numero di medicinali
+            return dict(oggi=oggi, sottotitolo=sottotitolo, mostra_stato=mostra,
+                        riepilogo=riepilogo if mostra else riepilogo[:1])
+
+        win = tk.Toplevel(self.root)
+        win.title("Report medicinali")
+        win.configure(bg=COLORE_SFONDO)
+        win.transient(self.root)
+        barra = tk.Frame(win, bg=COLORE_SFONDO)
+        barra.pack(fill=tk.X, padx=10, pady=(10, 0))
+        lbl_msg = tk.Label(win, text="", font=self.normal_font, bg=COLORE_SFONDO, justify=tk.LEFT)
+        lbl_msg.pack(anchor=tk.W, padx=10, pady=(6, 4))
+        area = tk.Label(win, bg=COLORE_SFONDO)
+        area.pack(padx=10, pady=(0, 10))
+
+        def copia():
+            fatto, errore = immagine_settimana.copia_immagine_negli_appunti(stato["immagine"])
+            if fatto:
+                lbl_msg.config(text="✅ Report copiato negli appunti: incollalo su WhatsApp con Ctrl+V", fg="#1B5E20")
+            else:
+                lbl_msg.config(text=f"⚠️ {errore}\nL'immagine è salvata in: {base}.png", fg="#B71C1C")
+
+        def genera():
+            immagine = immagine_settimana.crea_report_medicinali(righe, **parametri())[0]
+            stato["immagine"] = immagine
+            try:
+                immagine.save(base + ".png")
+            except OSError:
+                pass
+            # Anteprima rimpicciolita in modo morbido
+            rapporto = min(self.root.winfo_screenheight() * 0.75 / immagine.height,
+                           self.root.winfo_screenwidth() * 0.85 / immagine.width, 1.0)
+            try:
+                from PIL import ImageTk
+                ridotta = immagine.resize((int(immagine.width * rapporto), int(immagine.height * rapporto)),
+                                          immagine_settimana.Image.LANCZOS)
+                foto = ImageTk.PhotoImage(ridotta, master=win)
+                area.config(image=foto)
+                area.image = foto
+            except Exception:
+                pass
+            copia()  # come per gli impegni: il report è subito negli appunti
+
+        def cambia_stato():
+            impostazioni["report_mostra_stato"] = var_stato.get()
+            salva_dati(self.dati_completi)
+            genera()
+
+        def stampa():
+            pagine = immagine_settimana.crea_report_medicinali(
+                righe, altezza_pagina=immagine_settimana.altezza_pagina_report_a4(), **parametri())
+            try:
+                pdf = immagine_settimana.salva_pdf_a4(pagine, base + ".pdf")
+            except OSError as e:
+                lbl_msg.config(text=f"⚠️ PDF non creato: {e}\n(forse è aperto in un altro programma: chiudilo e riprova)",
+                               fg="#B71C1C")
+                return
+            try:
+                os.startfile(pdf)  # apre il PDF con il programma predefinito (Windows)
+                lbl_msg.config(text=f"🖨️ Si è aperto il PDF ({len(pagine)} pagin{'a' if len(pagine) == 1 else 'e'}"
+                                    f" A4): premi Ctrl+P per stampare.\nSalvato in: {pdf}", fg="#1B5E20")
+            except (AttributeError, OSError):
+                lbl_msg.config(text=f"PDF salvato in: {pdf}\nAprilo e stampalo da lì.", fg="#1B5E20")
+
+        tk.Button(barra, text="📋 Copia per WhatsApp", command=copia, bg="#25D366", fg="white",
+                  font=self.normal_font).pack(side=tk.LEFT, padx=4)
+        tk.Button(barra, text="🖨️ Stampa (PDF)", command=stampa, bg="#455A64", fg="white",
+                  font=self.normal_font).pack(side=tk.LEFT, padx=4)
+        tk.Checkbutton(barra, text="Mostra lo stato (giorni rimasti, scaduti...)", variable=var_stato,
+                       command=cambia_stato, font=self.normal_font, bg=COLORE_SFONDO,
+                       activebackground=COLORE_SFONDO).pack(side=tk.LEFT, padx=(16, 4))
+        tk.Button(barra, text="Chiudi", command=win.destroy, bg="#9E9E9E", fg="white",
+                  font=self.normal_font, width=10).pack(side=tk.LEFT, padx=(16, 4))
+        genera()
+
+    def aggiungi_medicinale(self):
+        nome = simpledialog.askstring("Nuovo Medicinale", "Nome del medicinale:")
+        if not nome or not nome.strip():
+            return
+        testo = simpledialog.askstring("Nuovo Medicinale",
+                                       "Data di scadenza (GG-MM-AAAA oppure MM-AAAA come sulla confezione):")
+        if not testo:
+            return
+        scadenza, solo_mese = interpreta_scadenza_medicinale(testo)
+        if scadenza is None:
+            messagebox.showerror("Errore", "Data di scadenza non valida!\nUsa GG-MM-AAAA oppure MM-AAAA (es. 03-2027)")
+            return
+        testo_apertura = simpledialog.askstring(
+            "Nuovo Medicinale", "Data di apertura (GG-MM-AAAA)\nLascia vuoto se la confezione è ancora chiusa:")
+        apertura = None
+        if testo_apertura and testo_apertura.strip():
+            apertura = interpreta_data(testo_apertura, date.today())
+            if apertura is None:
+                messagebox.showerror("Errore", "Data di apertura non valida! Usa il formato GG-MM-AAAA")
+                return
+        testo_durata_risposta = simpledialog.askstring(
+            "Nuovo Medicinale", "Dopo l'apertura va usato entro... (es. 28 giorni, 6 mesi, 1 anno)\n"
+                                "Lascia vuoto se non è indicato sul foglietto:")
+        durata = None
+        if testo_durata_risposta and testo_durata_risposta.strip():
+            durata = interpreta_durata(testo_durata_risposta)
+            if durata is None:
+                messagebox.showerror("Errore", "Durata non valida! Scrivi per esempio 28 giorni, 6 mesi o 1 anno")
+                return
+        posizione = self._scegli_posizione_medicinale(nome.strip())
+        self.dati_completi.setdefault("medicinali", []).append({
+            "nome": nome.strip(),
+            "scadenza": scadenza.isoformat(),
+            "solo_mese": solo_mese,
+            "apertura": apertura.isoformat() if apertura else None,
+            "durata_apertura": testo_durata(*durata) if durata else None,
+            "posizione": posizione,
+        })
+        salva_dati(self.dati_completi)
+        self.ricarica_interfaccia(tab_da_aprire="medicinali")
+        messagebox.showinfo("Successo", f"Medicinale '{nome.strip()}' aggiunto!")
+
+    def salva_medicinali(self):
+        """Salva le date modificate nei campi; se una è sbagliata non cambia nulla e dice quale."""
+        nuove = []
+        for widgets in self.medicinali_widgets.values():
+            voce = widgets["voce"]
+            scadenza, solo_mese = interpreta_scadenza_medicinale(widgets["entry_scadenza"].get())
+            if scadenza is None:
+                messagebox.showerror("Errore", f"Scadenza non valida per '{voce['nome']}'!\n\n"
+                                     "Usa GG-MM-AAAA oppure MM-AAAA.\nNessuna modifica è stata salvata.")
+                return
+            testo_apertura = widgets["entry_apertura"].get().strip()
+            apertura = None
+            if testo_apertura:
+                apertura = interpreta_data(testo_apertura, date.today())
+                if apertura is None:
+                    messagebox.showerror("Errore", f"Data di apertura non valida per '{voce['nome']}'!\n\n"
+                                         "Usa GG-MM-AAAA oppure lascia vuoto.\nNessuna modifica è stata salvata.")
+                    return
+            testo_dur = widgets["entry_durata"].get().strip()
+            durata = None
+            if testo_dur:
+                durata = interpreta_durata(testo_dur)
+                if durata is None:
+                    messagebox.showerror("Errore", f"Durata dopo l'apertura non valida per '{voce['nome']}'!\n\n"
+                                         "Scrivi per esempio 28 giorni, 6 mesi, 1 anno oppure lascia vuoto.\n"
+                                         "Nessuna modifica è stata salvata.")
+                    return
+            nuove.append((voce, scadenza, solo_mese, apertura, durata))
+        for voce, scadenza, solo_mese, apertura, durata in nuove:
+            voce["scadenza"] = scadenza.isoformat()
+            voce["solo_mese"] = solo_mese
+            voce["apertura"] = apertura.isoformat() if apertura else None
+            voce["durata_apertura"] = testo_durata(*durata) if durata else None
+        salva_dati(self.dati_completi)
+        self.ricarica_interfaccia(tab_da_aprire="medicinali")  # per rimettere in ordine di scadenza
+        messagebox.showinfo("Successo", "Medicinali salvati!")
+
+    def rinomina_medicinale(self, voce):
+        nuovo = simpledialog.askstring("Modifica Medicinale", f"Nuovo nome per '{voce['nome']}':",
+                                       initialvalue=voce["nome"])
+        if not nuovo or not nuovo.strip() or nuovo.strip() == voce["nome"]:
+            return
+        voce["nome"] = nuovo.strip()
+        salva_dati(self.dati_completi)
+        self.ricarica_interfaccia(tab_da_aprire="medicinali")
+
+    def elimina_medicinale(self, voce):
+        if not messagebox.askyesno("Conferma Eliminazione", f"Vuoi eliminare il medicinale '{voce['nome']}'?",
+                                   icon="warning"):
+            return
+        self.dati_completi["medicinali"] = [v for v in self.dati_completi.get("medicinali", []) if v is not voce]
+        salva_dati(self.dati_completi)
+        self.ricarica_interfaccia(tab_da_aprire="medicinali")
 
     def crea_tab_personali(self, parent):
         """Crea il tab per le scadenze personali, diviso in visite e altre scadenze."""
@@ -2228,6 +2786,9 @@ class ScadenzeApp:
 
             self._imposta_stato(widgets["label"], stato, colore)
 
+
+        # Medicinali: giorni alla scadenza ed eventuale apertura (solo a video, nessuna notifica)
+        self._aggiorna_stato_medicinali()
 
 if __name__ == "__main__":
     inizializza_db()

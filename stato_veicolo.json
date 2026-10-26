@@ -214,5 +214,334 @@
             "ora_fine": "12:15",
             "ricorrenza": null
         }
+    },
+    "medicinali": [
+        {
+            "nome": "Moment Act 400mg sospensione",
+            "scadenza": "2028-09-30",
+            "solo_mese": true,
+            "apertura": null,
+            "posizione": "sotto",
+            "durata_apertura": null
+        },
+        {
+            "nome": "Brufen 600mg",
+            "scadenza": "2027-03-31",
+            "solo_mese": true,
+            "apertura": null,
+            "posizione": "sotto",
+            "durata_apertura": null
+        },
+        {
+            "nome": "Tachipirina 1000mg",
+            "scadenza": "2027-12-31",
+            "solo_mese": true,
+            "apertura": null,
+            "posizione": "sotto",
+            "durata_apertura": null
+        },
+        {
+            "nome": "Tachipirina orosolubile fragola-vaniglia 500mg",
+            "scadenza": "2028-08-31",
+            "solo_mese": true,
+            "apertura": null,
+            "posizione": "sotto",
+            "durata_apertura": null
+        },
+        {
+            "nome": "Tachipirina orosolubile fragola-vaniglia 500mg",
+            "scadenza": "2029-04-30",
+            "solo_mese": true,
+            "apertura": null,
+            "posizione": "sotto",
+            "durata_apertura": null
+        },
+        {
+            "nome": "Tachipirina orosolubile fragola-vaniglia 500mg",
+            "scadenza": "2029-04-30",
+            "solo_mese": true,
+            "apertura": null,
+            "posizione": "sotto",
+            "durata_apertura": null
+        },
+        {
+            "nome": "Tachipirina sciroppo 120mg/5ml",
+            "scadenza": "2026-12-31",
+            "solo_mese": true,
+            "apertura": "2026-01-01",
+            "posizione": "sotto",
+            "durata_apertura": "365 giorni"
+        },
+        {
+            "nome": "Tachipirina sciroppo 120mg/5ml",
+            "scadenza": "2027-01-31",
+            "solo_mese": true,
+            "apertura": "2026-04-01",
+            "posizione": "sotto",
+            "durata_apertura": "365 giorni"
+        },
+        {
+            "nome": "Takifenekid (32mg+9,6mg)/ml",
+            "scadenza": "2027-12-31",
+            "solo_mese": true,
+            "apertura": "2026-10-25",
+            "posizione": "sotto",
+            "durata_apertura": "90 giorni"
+        },
+        {
+            "nome": "Nurofen febbre e dolore  200mg/5ml",
+            "scadenza": "2027-05-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": "183 giorni",
+            "posizione": "sotto"
+        },
+        {
+            "nome": "Nurofen febbre e dolore  200mg/5ml",
+            "scadenza": "2027-07-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": "183 giorni",
+            "posizione": "sotto"
+        },
+        {
+            "nome": "Nurofen 400 mg",
+            "scadenza": "2028-10-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sotto"
+        },
+        {
+            "nome": "Amoxicillina 1000mg",
+            "scadenza": "2026-11-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Amoxicillina 1000mg",
+            "scadenza": "2026-11-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Amoxicillina 1000mg",
+            "scadenza": "2027-01-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Connettivina crema",
+            "scadenza": "2028-03-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Connettivina BIO plus crema",
+            "scadenza": "2028-06-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Baycuten N",
+            "scadenza": "2027-07-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Orogermina",
+            "scadenza": "2027-02-28",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Cortivis",
+            "scadenza": "2027-06-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Otobor",
+            "scadenza": "2028-07-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Bentelan 1mg",
+            "scadenza": "2027-04-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Voltaren soluzione iniettabile",
+            "scadenza": "2026-12-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Argotone 0-12",
+            "scadenza": "2028-07-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Dubine 10mg crema",
+            "scadenza": "2027-04-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": null
+        },
+        {
+            "nome": "Rinostil",
+            "scadenza": "2027-03-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Levotuss",
+            "scadenza": "2028-02-29",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Totalip 20 mg",
+            "scadenza": "2028-11-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Nazar spray nasale",
+            "scadenza": "2027-09-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Abincol plus integratore",
+            "scadenza": "2027-04-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Cerulisina",
+            "scadenza": "2027-11-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Nausless",
+            "scadenza": "2026-11-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Deltacortene 25mg",
+            "scadenza": "2028-05-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Iridium baby x2",
+            "scadenza": "2028-09-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Xflor integratore",
+            "scadenza": "2027-06-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "intermedio"
+        },
+        {
+            "nome": "Sintotrat 0,5% crema",
+            "scadenza": "2028-09-30",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Citrosodina",
+            "scadenza": "2027-12-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Melatonina 1mg",
+            "scadenza": "2028-10-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Alfatex unguento oftalmico",
+            "scadenza": "2028-10-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        },
+        {
+            "nome": "Dicodral",
+            "scadenza": "2028-05-31",
+            "solo_mese": true,
+            "apertura": null,
+            "durata_apertura": null,
+            "posizione": "sopra"
+        }
+    ],
+    "impostazioni": {
+        "ordine_medicinali": [
+            "posizione",
+            true
+        ],
+        "report_mostra_stato": false
     }
 }

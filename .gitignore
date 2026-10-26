@@ -48,3 +48,8 @@ client_secret*.json
 # Copie di sicurezza e file temporanei del salvataggio
 backup/
 *.tmp
+
+# Immagini e PDF generati dall'app
+riepilogo_settimana.png
+report_medicinali.png
+report_medicinali.pdf
