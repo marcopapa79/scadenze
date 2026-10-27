@@ -65,6 +65,7 @@ Una versione con grafica moderna (customtkinter) è stata provata il 23/10/2026 
 | `stato_veicolo.json` | — | Tutti i dati (nella cartella dati, §8a) |
 | `backup/` | — | Accanto al file dati: una copia di `stato_veicolo.json` al giorno (`stato_veicolo_AAAA-MM-GG.json`, ultime 30) più le copie messe da parte (`_altro_pc_`, `_sostituito_`); esclusa da git |
 | `impostazioni_locali.json` | — | Solo per questo PC: `{"cartella_dati": "..."}` (esclusa da git) |
+| `ISTRUZIONI_VSCODE.md` | — | Passi per togliere `stato_veicolo.json` da git senza cancellarlo (anche per Copilot in VS Code) |
 | `avvia_scadenze.bat` | — | Avvio con installazione automatica delle librerie mancanti |
 | `requirements.txt` | — | `plyer`, `Pillow` + librerie Google |
 | `credentials.json` / `client_secret_*.json` | — | Credenziali OAuth (escluse da git) |
@@ -226,7 +227,9 @@ Aggiunta il 27/10/2026, per non dover più aggiornare git a ogni modifica: il fi
   - Tornando sulla finestra (`<FocusIn>` → `_controlla_dati_cambiati()`), se il file è stato cambiato da un'altra parte chiede se ricaricarlo (`ricarica_dati()`, resta sulla stessa scheda). Il controllo guarda prima la data di modifica e poi il contenuto, e una volta risposto non chiede di nuovo per lo stesso cambiamento.
   - Se si salva sopra una versione cambiata da un altro PC, quella versione viene prima copiata in `backup/stato_veicolo_altro_pc_<data_ora>.json` e compare un avviso: niente si perde, ma conviene usare il programma su un PC alla volta.
   - Non c'è un'unione automatica delle modifiche fatte contemporaneamente su due PC.
+- **Copia locale**: se i dati sono fuori dalla cartella del programma, `_backup_giornaliero()` oltre alla copia giornaliera accanto ai dati mette ogni `GIORNI_BACKUP_LOCALE = 7` giorni una copia anche in `backup/` nella cartella del programma (ne tiene `COPIE_BACKUP_LOCALE = 30`, circa 7 mesi; le copie giornaliere fatte prima dello spostamento restano lì finché non sono più di 30). Entrambe usano `_copia_di_sicurezza(cartella, ogni_giorni, quante)`, che guarda la data nel nome dell'ultima copia. Se all'avvio la cartella dati non si trova, il messaggio indica anche l'ultima copia locale.
 - I file del programma (credenziali Google, immagini e PDF generati) restano nella cartella del programma.
+- **Togliere i dati da git**: `git rm --cached stato_veicolo.json` + commit (il file resta sul disco; `.gitignore` lo esclude). Passi completi e regole per Copilot in `ISTRUZIONI_VSCODE.md`.
 
 ---
 

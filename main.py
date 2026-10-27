@@ -46,6 +46,12 @@ FILE_IMPOSTAZIONI_LOCALI = os.path.join(CARTELLA_PROGRAMMA, "impostazioni_locali
 # Copie di sicurezza giornaliere del file dati, nella cartella "backup" accanto al file dati
 # (una al giorno, tenute per GIORNI_BACKUP giorni)
 GIORNI_BACKUP = 30
+# Se i dati stanno fuori (Drive, Dropbox, NAS...), ogni GIORNI_BACKUP_LOCALE giorni una copia va
+# anche nella cartella "backup" del programma, su questo PC: se succede qualcosa alla cartella
+# esterna, i dati non sono persi. Se ne tengono le ultime COPIE_BACKUP_LOCALE (30 x 7 = ~7 mesi).
+CARTELLA_BACKUP_PROGRAMMA = os.path.join(CARTELLA_PROGRAMMA, "backup")
+GIORNI_BACKUP_LOCALE = 7
+COPIE_BACKUP_LOCALE = 30
 
 # Colore di sfondo delle finestre (versione classica). Prima era "#f0f0f0" (grigio chiaro).
 # Esempi: "#dcdfe3" grigio un po' più scuro, "#cfd8dc" grigio-azzurro, "#b0bec5" grigio-azzurro scuro
@@ -211,20 +217,36 @@ def _copia_da_parte(percorso, cartella_backup, motivo):
     return copia
 
 
-def _backup_giornaliero():
-    """Prima del primo salvataggio del giorno copia il file dati in backup/ (tiene gli ultimi GIORNI_BACKUP)."""
+def _copia_di_sicurezza(cartella_backup, ogni_giorni, quante):
+    """Copia il file dati in cartella_backup (stato_veicolo_AAAA-MM-GG.json) se l'ultima copia
+    ha almeno `ogni_giorni` giorni; poi tiene solo le ultime `quante` copie."""
     if not os.path.exists(DB_FILE):
         return
     try:
-        os.makedirs(CARTELLA_BACKUP, exist_ok=True)
-        copia = os.path.join(CARTELLA_BACKUP, f"stato_veicolo_{date.today():%Y-%m-%d}.json")
-        if not os.path.exists(copia):
-            shutil.copy2(DB_FILE, copia)
-            vecchie = sorted(glob.glob(os.path.join(CARTELLA_BACKUP, "stato_veicolo_[0-9]*.json")))
-            for file_vecchio in vecchie[:-GIORNI_BACKUP]:
-                os.remove(file_vecchio)
+        os.makedirs(cartella_backup, exist_ok=True)
+        schema = os.path.join(cartella_backup, "stato_veicolo_[0-9]*.json")
+        copie = sorted(glob.glob(schema))
+        if copie:
+            try:
+                ultima = datetime.strptime(os.path.basename(copie[-1])[14:24], "%Y-%m-%d").date()
+                if (date.today() - ultima).days < ogni_giorni:
+                    return
+            except ValueError:
+                pass
+        shutil.copy2(DB_FILE, os.path.join(cartella_backup, f"stato_veicolo_{date.today():%Y-%m-%d}.json"))
+        for file_vecchio in sorted(glob.glob(schema))[:-quante]:
+            os.remove(file_vecchio)
     except OSError as e:
-        print(f"Copia di sicurezza non riuscita: {e}")
+        print(f"Copia di sicurezza non riuscita ({cartella_backup}): {e}")
+
+
+def _backup_giornaliero():
+    """Prima del primo salvataggio del giorno copia il file dati in backup/ accanto ai dati
+    (tiene gli ultimi GIORNI_BACKUP). Se i dati sono fuori dalla cartella del programma,
+    ogni GIORNI_BACKUP_LOCALE giorni ne mette una copia anche nel backup del programma."""
+    _copia_di_sicurezza(CARTELLA_BACKUP, 1, GIORNI_BACKUP)
+    if CARTELLA_DATI_SCELTA and not _stessa_cartella(CARTELLA_BACKUP, CARTELLA_BACKUP_PROGRAMMA):
+        _copia_di_sicurezza(CARTELLA_BACKUP_PROGRAMMA, GIORNI_BACKUP_LOCALE, COPIE_BACKUP_LOCALE)
 
 
 def salva_dati(dati):
@@ -3103,6 +3125,10 @@ def prepara_file_dati(root):
             problema = (f"Non trovo la cartella dei dati:\n{CARTELLA_DATI}\n\n"
                         "Se è su Drive, Dropbox o OneDrive, controlla che il loro programma sia avviato; "
                         "se è sul NAS, che il NAS sia acceso e il PC collegato alla rete.")
+        copie_locali = sorted(glob.glob(os.path.join(CARTELLA_BACKUP_PROGRAMMA, "stato_veicolo_[0-9]*.json")))
+        if copie_locali:
+            problema += ("\n\nSe i dati fossero persi, l'ultima copia di sicurezza su questo PC è:\n"
+                         f"{copie_locali[-1]}")
         if messagebox.askretrycancel("Dati non raggiungibili", problema + "\n\nRiprova = controlla di nuovo\n"
                                      "Annulla = scegli un'altra cartella oppure esci", parent=root):
             continue

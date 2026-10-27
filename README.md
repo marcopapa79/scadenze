@@ -137,7 +137,8 @@ python notifiche.py
 - `impostazioni_locali.json`: impostazioni solo di questo PC, es. la cartella dei dati (non va su git)
 - `requirements.txt`: Dipendenze Python
 - `avvia_scadenze.bat`: Avvio con controlli automatici (Windows)
-- `backup/`: Copie di sicurezza giornaliere dei dati (create automaticamente, accanto al file dati)
+- `backup/`: Copie di sicurezza giornaliere dei dati (create automaticamente, accanto al file dati); se i dati sono su Drive/NAS, nella cartella del programma una copia ogni 7 giorni
+- `ISTRUZIONI_VSCODE.md`: passi per togliere i dati da git (anche da far eseguire a Copilot in VS Code)
 - `run.bat`: Avvio rapido (Windows)
 - `GOOGLE_CALENDAR_SETUP.md`: Guida setup Google Calendar
 - `credentials.json`: **Credenziali Google (NON committare!)**
@@ -167,7 +168,8 @@ Il file dei dati `stato_veicolo.json` può stare in qualunque cartella, così no
    - **Dropbox**: `C:\Users\<nome>\Dropbox\Scadenze`
    - **OneDrive**: `C:\Users\<nome>\OneDrive\Scadenze`
    - **NAS**: una cartella di rete (`\\NAS\condivisa\Scadenze`) o un'unità collegata come `Z:\`
-3. Il programma ci copia i dati e da quel momento legge e salva lì (anche le copie di sicurezza, nella cartella `backup` accanto). La scelta viene ricordata solo su questo PC (`impostazioni_locali.json`).
+3. Il programma ci copia i dati e da quel momento legge e salva lì (anche le copie di sicurezza giornaliere, nella cartella `backup` accanto). La scelta viene ricordata solo su questo PC (`impostazioni_locali.json`).
+4. In più, **ogni 7 giorni** una copia dei dati va anche nella cartella `backup` del programma, su questo PC: se succede qualcosa a Drive o al NAS i dati non sono persi (si tengono le ultime 30 copie, circa 7 mesi; si cambia con `GIORNI_BACKUP_LOCALE` / `COPIE_BACKUP_LOCALE` in `main.py`).
 
 **Su un altro PC**: apri il programma, premi **📁 Cambia cartella dati…**, scegli la stessa cartella e rispondi **Sì** ("usa i dati che sono già nella cartella").
 
@@ -175,7 +177,7 @@ Il file dei dati `stato_veicolo.json` può stare in qualunque cartella, così no
 
 **Più PC**: meglio usare il programma su un PC alla volta. Se il file viene cambiato da un altro PC mentre il programma è aperto, tornando sulla finestra ti chiede se ricaricarlo; se salvi comunque, la versione dell'altro PC viene messa da parte in `backup/stato_veicolo_altro_pc_….json`, quindi non si perde nulla.
 
-**Togliere i dati da git** (una volta sola, dopo aver spostato la cartella dati), nel terminale dentro la cartella del programma (es. il terminale di VS Code):
+**Togliere i dati da git** (una volta sola, dopo aver spostato la cartella dati): i passi completi, anche da far eseguire a Copilot in VS Code, sono in [ISTRUZIONI_VSCODE.md](ISTRUZIONI_VSCODE.md). In breve, nel terminale dentro la cartella del programma:
 ```bash
 git rm --cached stato_veicolo.json
 git commit -m "Dati spostati fuori da git"
