@@ -177,13 +177,6 @@
             "ora_fine": null,
             "ricorrenza": null
         },
-        "Patronato bonus mamme": {
-            "data": "2026-10-26",
-            "con_orario": true,
-            "ora_inizio": "09:00",
-            "ora_fine": "09:30",
-            "ricorrenza": null
-        },
         "Vaccino Beatrice": {
             "data": "2026-11-03",
             "con_orario": false,
