@@ -6,7 +6,7 @@ import re
 import shutil
 from datetime import date, datetime, timedelta
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 from tkinter import font as tkfont
 from ricorrenze import prossima_occorrenza, occorrenze_nel_periodo
 
@@ -35,11 +35,16 @@ except ImportError:
 SOGLIA_KM_PREAVVISO = 3500
 SOGLIA_GIORNI_PREAVVISO = 30
 
-# Tutti i file stanno nella cartella del programma, da qualunque cartella lo si avvii
+# I file del programma stanno nella sua cartella, da qualunque cartella lo si avvii
 CARTELLA_PROGRAMMA = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(CARTELLA_PROGRAMMA, "stato_veicolo.json")
-# Copie di sicurezza giornaliere del file dati (una al giorno, tenute per GIORNI_BACKUP giorni)
-CARTELLA_BACKUP = os.path.join(CARTELLA_PROGRAMMA, "backup")
+NOME_FILE_DATI = "stato_veicolo.json"
+# Il file dei dati può stare in un'altra cartella: una cartella sincronizzata (Google Drive,
+# Dropbox, OneDrive), il NAS, ecc. Si sceglie con "📁 Cambia cartella dati" in fondo alla
+# finestra; la scelta è scritta in impostazioni_locali.json, che vale solo per questo PC
+# (su un altro PC la cartella di Drive può avere un percorso diverso) e non va su git.
+FILE_IMPOSTAZIONI_LOCALI = os.path.join(CARTELLA_PROGRAMMA, "impostazioni_locali.json")
+# Copie di sicurezza giornaliere del file dati, nella cartella "backup" accanto al file dati
+# (una al giorno, tenute per GIORNI_BACKUP giorni)
 GIORNI_BACKUP = 30
 
 # Colore di sfondo delle finestre (versione classica). Prima era "#f0f0f0" (grigio chiaro).
@@ -112,9 +117,98 @@ def inizializza_db():
             json.dump(default_data, f, indent=4)
 
 
+def leggi_impostazioni_locali():
+    """Impostazioni che valgono solo per questo PC (impostazioni_locali.json), es. la cartella dati."""
+    try:
+        with open(FILE_IMPOSTAZIONI_LOCALI, "r", encoding="utf-8") as f:
+            impostazioni = json.load(f)
+        return impostazioni if isinstance(impostazioni, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _stessa_cartella(a, b):
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def usa_cartella_dati(cartella):
+    """Imposta dove si leggono e salvano i dati (None o la cartella del programma = lì)."""
+    global CARTELLA_DATI, CARTELLA_DATI_SCELTA, DB_FILE, CARTELLA_BACKUP, _contenuto_noto, _mtime_visto
+    if cartella and _stessa_cartella(cartella, CARTELLA_PROGRAMMA):
+        cartella = None
+    CARTELLA_DATI_SCELTA = os.path.normpath(cartella) if cartella else None
+    CARTELLA_DATI = CARTELLA_DATI_SCELTA or CARTELLA_PROGRAMMA
+    DB_FILE = os.path.join(CARTELLA_DATI, NOME_FILE_DATI)
+    CARTELLA_BACKUP = os.path.join(CARTELLA_DATI, "backup")
+    _contenuto_noto, _mtime_visto = None, None
+
+
+def imposta_cartella_dati(cartella):
+    """Usa questa cartella per i dati e la ricorda per le prossime volte (solo su questo PC)."""
+    impostazioni = leggi_impostazioni_locali()
+    if cartella and not _stessa_cartella(cartella, CARTELLA_PROGRAMMA):
+        impostazioni["cartella_dati"] = os.path.normpath(cartella)
+    else:
+        impostazioni.pop("cartella_dati", None)
+    _scrivi_json_sicuro(FILE_IMPOSTAZIONI_LOCALI, impostazioni)
+    usa_cartella_dati(cartella)
+
+
+# Contenuto del file dati come è stato letto o scritto l'ultima volta da questa finestra: serve
+# ad accorgersi se nel frattempo l'ha cambiato qualcun altro (un altro PC via Drive, Dropbox, NAS)
+_contenuto_noto = None
+_mtime_visto = None
+usa_cartella_dati(leggi_impostazioni_locali().get("cartella_dati"))
+
+
+def _scrivi_json_sicuro(percorso, dati):
+    """Scrive prima un file temporaneo e poi lo sostituisce all'originale.
+
+    Se il PC si spegne o l'app si blocca a metà, il file resta quello di prima invece di
+    rimanere vuoto o rovinato.
+    """
+    temporaneo = percorso + ".tmp"
+    with open(temporaneo, "w", encoding="utf-8") as f:
+        json.dump(dati, f, indent=4)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(temporaneo, percorso)
+
+
+def _leggi_byte(percorso):
+    with open(percorso, "rb") as f:
+        return f.read()
+
+
 def carica_dati():
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    global _contenuto_noto, _mtime_visto
+    contenuto = _leggi_byte(DB_FILE)
+    _contenuto_noto, _mtime_visto = contenuto, os.path.getmtime(DB_FILE)
+    return json.loads(contenuto.decode("utf-8"))
+
+
+def file_dati_cambiato_da_fuori():
+    """True se il file dati è stato cambiato da qualcun altro dopo l'ultima lettura/scrittura.
+
+    Una volta segnalato un cambiamento non lo segnala di nuovo (finché il file non cambia ancora).
+    """
+    global _mtime_visto
+    try:
+        mtime = os.path.getmtime(DB_FILE)
+        if mtime == _mtime_visto:
+            return False
+        _mtime_visto = mtime
+        return _contenuto_noto is not None and _leggi_byte(DB_FILE) != _contenuto_noto
+    except OSError:
+        return False
+
+
+def _copia_da_parte(percorso, cartella_backup, motivo):
+    """Copia un file dati in backup/ con data e ora nel nome; restituisce il percorso della copia."""
+    os.makedirs(cartella_backup, exist_ok=True)
+    copia = os.path.join(cartella_backup, f"stato_veicolo_{motivo}_{datetime.now():%Y-%m-%d_%H%M%S}.json")
+    shutil.copy2(percorso, copia)
+    return copia
 
 
 def _backup_giornaliero():
@@ -126,7 +220,7 @@ def _backup_giornaliero():
         copia = os.path.join(CARTELLA_BACKUP, f"stato_veicolo_{date.today():%Y-%m-%d}.json")
         if not os.path.exists(copia):
             shutil.copy2(DB_FILE, copia)
-            vecchie = sorted(glob.glob(os.path.join(CARTELLA_BACKUP, "stato_veicolo_*.json")))
+            vecchie = sorted(glob.glob(os.path.join(CARTELLA_BACKUP, "stato_veicolo_[0-9]*.json")))
             for file_vecchio in vecchie[:-GIORNI_BACKUP]:
                 os.remove(file_vecchio)
     except OSError as e:
@@ -134,18 +228,42 @@ def _backup_giornaliero():
 
 
 def salva_dati(dati):
-    """Salva in modo sicuro: scrive prima un file temporaneo e poi lo sostituisce all'originale.
+    """Salva tutti i dati nel file, in modo sicuro (vedi _scrivi_json_sicuro).
 
-    Se il PC si spegne o l'app si blocca a metà, stato_veicolo.json resta quello di prima
-    invece di rimanere vuoto o rovinato.
+    - Se nel frattempo il file è stato cambiato da un'altra parte (un altro PC via Drive,
+      Dropbox, NAS), quella versione viene prima copiata in backup/ e compare un avviso.
+    - Se la cartella non è raggiungibile (NAS spento, Drive non avviato...) chiede di riprovare;
+      con Annulla le modifiche restano nella finestra e partono col prossimo salvataggio.
+    Restituisce True se ha salvato.
     """
-    _backup_giornaliero()
-    temporaneo = DB_FILE + ".tmp"
-    with open(temporaneo, "w", encoding="utf-8") as f:
-        json.dump(dati, f, indent=4)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(temporaneo, DB_FILE)
+    global _contenuto_noto, _mtime_visto
+    while True:
+        copia_altra_versione = None
+        try:
+            if (_contenuto_noto is not None and os.path.exists(DB_FILE)
+                    and _leggi_byte(DB_FILE) != _contenuto_noto):
+                copia_altra_versione = _copia_da_parte(DB_FILE, CARTELLA_BACKUP, "altro_pc")
+            _backup_giornaliero()
+            _scrivi_json_sicuro(DB_FILE, dati)
+            _contenuto_noto, _mtime_visto = _leggi_byte(DB_FILE), os.path.getmtime(DB_FILE)
+            break
+        except OSError as e:
+            if not messagebox.askretrycancel(
+                    "Dati non salvati",
+                    f"Non riesco a salvare i dati in:\n{DB_FILE}\n\n{e}\n\n"
+                    "Se la cartella è sul NAS o su Drive/Dropbox, controlla che sia raggiungibile "
+                    "e premi Riprova.\nCon Annulla le modifiche restano in questa finestra e "
+                    "vengono salvate al prossimo salvataggio riuscito."):
+                return False
+    if copia_altra_versione:
+        messagebox.showwarning(
+            "Dati cambiati da un altro computer",
+            "Mentre il programma era aperto, il file dei dati è stato cambiato da un'altra parte "
+            "(un altro PC, attraverso Drive, Dropbox o il NAS).\n\n"
+            "Ho salvato i dati di questa finestra. L'altra versione non è persa, è qui:\n"
+            f"{copia_altra_versione}\n\n"
+            "Consiglio: usa il programma su un PC alla volta e chiudilo quando hai finito.")
+    return True
 
 
 def data_iso_a_italiana(data_iso):
@@ -267,11 +385,21 @@ class ScadenzeApp:
         self._prepara_finestra()
 
         self.dati_completi = carica_dati()
-        
+        self._prepara_dati()
+
+        self.crea_interfaccia()
+        self.aggiorna_visualizzazione()
+
+        # Tornando sulla finestra controlla se i dati sono stati cambiati da un altro PC
+        self._controllo_dati_programmato = False
+        self.root.bind("<FocusIn>", self._al_ritorno_sulla_finestra, add="+")
+
+    def _prepara_dati(self):
+        """Sistema i dati appena letti (vecchio formato, sezioni mancanti) e sceglie il veicolo."""
         # Migrazione vecchio formato se necessario
         if "veicoli" not in self.dati_completi:
             self.migra_vecchio_formato()
-        
+
         # Aggiungi scadenze_personali se non esistono
         if "scadenze_personali" not in self.dati_completi:
             self.dati_completi["scadenze_personali"] = {}
@@ -279,11 +407,119 @@ class ScadenzeApp:
 
         # Elenco dei medicinali (scheda 💊 Medicinali): nessuna notifica, solo promemoria
         self.dati_completi.setdefault("medicinali", [])
-        
+
         self.veicolo_corrente = self.dati_completi.get("veicolo_selezionato", list(self.dati_completi["veicoli"].keys())[0])
-        
-        self.crea_interfaccia()
-        self.aggiorna_visualizzazione()
+
+    # ------------------------------------------------------------ cartella dei dati
+
+    def _al_ritorno_sulla_finestra(self, event=None):
+        # Il controllo si fa subito dopo l'evento, una volta sola anche se arrivano più eventi
+        if not self._controllo_dati_programmato:
+            self._controllo_dati_programmato = True
+            self.root.after(50, self._controlla_dati_cambiati)
+
+    def _controlla_dati_cambiati(self):
+        try:
+            if file_dati_cambiato_da_fuori() and messagebox.askyesno(
+                    "Dati cambiati",
+                    "Il file dei dati è stato cambiato da un'altra parte (un altro PC, attraverso "
+                    "Drive, Dropbox o il NAS) mentre il programma era aperto.\n\n"
+                    "Vuoi ricaricarlo adesso? (consigliato)\n\n"
+                    "No = continui con i dati di questa finestra; al prossimo salvataggio l'altra "
+                    "versione verrà messa da parte nella cartella backup.", parent=self.root):
+                self.ricarica_dati()
+        finally:
+            self._controllo_dati_programmato = False
+
+    def _tab_corrente(self):
+        try:
+            return ("veicoli", "personali", "medicinali")[self.notebook.index(self.notebook.select())]
+        except (AttributeError, IndexError, tk.TclError):
+            return "personali"
+
+    def ricarica_dati(self):
+        """Rilegge il file dati e ridisegna la finestra, restando sulla stessa scheda."""
+        scheda = self._tab_corrente()
+        try:
+            self.dati_completi = carica_dati()
+        except (OSError, ValueError) as e:
+            messagebox.showerror("Errore", f"Non riesco a leggere i dati:\n{DB_FILE}\n\n{e}", parent=self.root)
+            return
+        self._prepara_dati()
+        self.ricarica_interfaccia(tab_da_aprire=scheda)
+
+    @staticmethod
+    def _descrivi_dati(dati, percorso):
+        try:
+            quando = datetime.fromtimestamp(os.path.getmtime(percorso)).strftime("%d/%m/%Y %H:%M")
+        except OSError:
+            quando = "?"
+        return (f"salvati il {quando}: {len(dati.get('scadenze_personali', {}))} scadenze personali, "
+                f"{len(dati.get('medicinali', []))} medicinali, {len(dati.get('veicoli', {}))} veicoli")
+
+    def cambia_cartella_dati(self):
+        """Sposta il file dei dati in un'altra cartella (Drive, Dropbox, OneDrive, NAS...)."""
+        nuova = filedialog.askdirectory(
+            parent=self.root, initialdir=CARTELLA_DATI, mustexist=True,
+            title="Dove salvare i dati? (es. cartella di Google Drive, Dropbox, OneDrive o del NAS)")
+        if not nuova:
+            return
+        nuova = os.path.normpath(nuova)
+        if _stessa_cartella(nuova, CARTELLA_DATI):
+            messagebox.showinfo("Cartella dati", "I dati sono già in questa cartella.", parent=self.root)
+            return
+        destinazione = os.path.join(nuova, NOME_FILE_DATI)
+        vecchio = DB_FILE
+        try:
+            # Si può scrivere lì?
+            prova = os.path.join(nuova, ".prova_scrittura_scadenze.tmp")
+            with open(prova, "w", encoding="utf-8") as f:
+                f.write("prova")
+            os.remove(prova)
+
+            if os.path.exists(destinazione):
+                try:
+                    with open(destinazione, "r", encoding="utf-8") as f:
+                        dati_cartella = json.load(f)
+                    descrizione = self._descrivi_dati(dati_cartella, destinazione)
+                except (OSError, ValueError) as e:
+                    dati_cartella, descrizione = None, f"non si riesce a leggere ({e})"
+                risposta = messagebox.askyesnocancel(
+                    "C'è già un file dei dati",
+                    f"In questa cartella c'è già un file dei dati:\n{descrizione}\n\n"
+                    f"I dati che stai usando adesso:\n{self._descrivi_dati(self.dati_completi, DB_FILE)}\n\n"
+                    "Sì = usa i dati che sono già nella cartella\n"
+                    "No = mettici i dati che stai usando adesso (quelli della cartella vengono messi "
+                    "da parte nella sua cartella backup)\n"
+                    "Annulla = lascia tutto com'è", parent=self.root)
+                if risposta is None:
+                    return
+                if risposta and dati_cartella is None:
+                    messagebox.showerror("Cartella dati", "Il file nella cartella non si riesce a leggere: "
+                                         "scegli No oppure un'altra cartella.", parent=self.root)
+                    return
+                if not risposta:
+                    _copia_da_parte(destinazione, os.path.join(nuova, "backup"), "sostituito")
+                    _scrivi_json_sicuro(destinazione, self.dati_completi)
+            else:
+                _scrivi_json_sicuro(destinazione, self.dati_completi)
+            imposta_cartella_dati(nuova)
+        except OSError as e:
+            messagebox.showerror("Cartella dati", f"Non è stato possibile usare questa cartella:\n{nuova}\n\n{e}\n\n"
+                                 f"I dati restano dov'erano:\n{vecchio}", parent=self.root)
+            return
+        self.ricarica_dati()
+        messagebox.showinfo(
+            "Cartella dati",
+            f"D'ora in poi i dati vengono letti e salvati qui:\n{DB_FILE}\n\n"
+            "Le copie di sicurezza giornaliere vanno nella cartella \"backup\" accanto.\n\n"
+            f"Il file di prima non viene più aggiornato:\n{vecchio}", parent=self.root)
+
+    def apri_cartella_dati(self):
+        try:
+            os.startfile(CARTELLA_DATI)  # Esplora risorse (Windows)
+        except (AttributeError, OSError):
+            messagebox.showinfo("Cartella dati", f"I dati sono in:\n{DB_FILE}", parent=self.root)
     
     def _prepara_finestra(self):
         """Titolo, dimensioni, colori e caratteri della finestra principale."""
@@ -712,6 +948,16 @@ class ScadenzeApp:
         self.aggiorna_visualizzazione()
     
     def crea_interfaccia(self, tab_da_aprire="personali"):
+        # Barra in fondo: dove sono salvati i dati
+        barra_dati = tk.Frame(self.root, bg=COLORE_SFONDO)
+        barra_dati.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 6))
+        tk.Label(barra_dati, text=f"💾 Dati: {DB_FILE}", font=self.normal_font, bg=COLORE_SFONDO,
+                 fg="#455A64").pack(side=tk.LEFT)
+        tk.Button(barra_dati, text="📁 Cambia cartella dati…", command=self.cambia_cartella_dati,
+                  font=self.normal_font).pack(side=tk.LEFT, padx=(12, 4))
+        tk.Button(barra_dati, text="📂 Apri cartella", command=self.apri_cartella_dati,
+                  font=self.normal_font).pack(side=tk.LEFT, padx=4)
+
         # Crea Notebook (tabs)
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -2836,8 +3082,50 @@ class ScadenzeApp:
         # Medicinali: giorni alla scadenza ed eventuale apertura (solo a video, nessuna notifica)
         self._aggiorna_stato_medicinali()
 
+def prepara_file_dati(root):
+    """Prima di aprire il programma controlla che il file dei dati ci sia. False = uscire.
+
+    Nella cartella del programma, se manca lo crea (prima volta). In un'altra cartella (Drive,
+    NAS...) invece NON ne crea uno nuovo: si rischierebbe di sovrascrivere i dati veri appena la
+    cartella torna raggiungibile. Propone di riprovare o di scegliere un'altra cartella.
+    """
+    while True:
+        if CARTELLA_DATI_SCELTA is None:
+            inizializza_db()
+            return True
+        if os.path.isfile(DB_FILE):
+            return True
+        if os.path.isdir(CARTELLA_DATI):
+            problema = (f"Nella cartella dei dati non c'è il file {NOME_FILE_DATI}:\n{CARTELLA_DATI}\n\n"
+                        "Se la cartella è su Drive, Dropbox o OneDrive, forse il file non è ancora "
+                        "stato scaricato.")
+        else:
+            problema = (f"Non trovo la cartella dei dati:\n{CARTELLA_DATI}\n\n"
+                        "Se è su Drive, Dropbox o OneDrive, controlla che il loro programma sia avviato; "
+                        "se è sul NAS, che il NAS sia acceso e il PC collegato alla rete.")
+        if messagebox.askretrycancel("Dati non raggiungibili", problema + "\n\nRiprova = controlla di nuovo\n"
+                                     "Annulla = scegli un'altra cartella oppure esci", parent=root):
+            continue
+        nuova = filedialog.askdirectory(parent=root, mustexist=True,
+                                        title=f"Scegli la cartella che contiene {NOME_FILE_DATI} (Annulla = esci)")
+        if not nuova:
+            return False
+        if not os.path.isfile(os.path.join(nuova, NOME_FILE_DATI)):
+            messagebox.showerror("Dati non trovati", f"In questa cartella non c'è {NOME_FILE_DATI}:\n"
+                                 f"{os.path.normpath(nuova)}", parent=root)
+            continue
+        try:
+            imposta_cartella_dati(nuova)
+        except OSError:
+            usa_cartella_dati(nuova)  # vale almeno per questa volta
+
+
 if __name__ == "__main__":
-    inizializza_db()
     root = tk.Tk()
-    app = ScadenzeApp(root)
-    root.mainloop()
+    root.withdraw()  # la finestra compare quando i dati sono pronti
+    if prepara_file_dati(root):
+        root.deiconify()
+        app = ScadenzeApp(root)
+        root.mainloop()
+    else:
+        root.destroy()

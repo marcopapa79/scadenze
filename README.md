@@ -133,10 +133,11 @@ python notifiche.py
 - `immagine_settimana.py`: Immagine a colori per WhatsApp (calendario / elenco)
 - `notifiche.py`: Sistema di notifiche desktop
 - `google_calendar.py`: Modulo esportazione Google Calendar
-- `stato_veicolo.json`: Database locale con i dati dei veicoli
+- `stato_veicolo.json`: tutti i dati (nella cartella del programma oppure nella cartella dati scelta, vedi sotto)
+- `impostazioni_locali.json`: impostazioni solo di questo PC, es. la cartella dei dati (non va su git)
 - `requirements.txt`: Dipendenze Python
 - `avvia_scadenze.bat`: Avvio con controlli automatici (Windows)
-- `backup/`: Copie di sicurezza giornaliere dei dati (create automaticamente)
+- `backup/`: Copie di sicurezza giornaliere dei dati (create automaticamente, accanto al file dati)
 - `run.bat`: Avvio rapido (Windows)
 - `GOOGLE_CALENDAR_SETUP.md`: Guida setup Google Calendar
 - `credentials.json`: **Credenziali Google (NON committare!)**
@@ -156,11 +157,36 @@ COLORE_SFONDO = "#f0f0f0"   # grigio chiaro (predefinito)
                             # altri esempi: "#dcdfe3" grigio un po' più scuro, "#cfd8dc" grigio-azzurro, "#b0bec5" grigio-azzurro scuro
 ```
 
+## 📁 Dove salvare i dati (Google Drive, Dropbox, OneDrive, NAS)
+
+Il file dei dati `stato_veicolo.json` può stare in qualunque cartella, così non serve più aggiornare git a ogni modifica e i dati sono anche al sicuro fuori dal PC.
+
+1. In fondo alla finestra c'è **💾 Dati: …** con il percorso del file e il pulsante **📁 Cambia cartella dati…**
+2. Scegli la cartella, per esempio:
+   - **Google Drive** (con "Google Drive per desktop" installato): `G:\Il mio Drive\Scadenze`
+   - **Dropbox**: `C:\Users\<nome>\Dropbox\Scadenze`
+   - **OneDrive**: `C:\Users\<nome>\OneDrive\Scadenze`
+   - **NAS**: una cartella di rete (`\\NAS\condivisa\Scadenze`) o un'unità collegata come `Z:\`
+3. Il programma ci copia i dati e da quel momento legge e salva lì (anche le copie di sicurezza, nella cartella `backup` accanto). La scelta viene ricordata solo su questo PC (`impostazioni_locali.json`).
+
+**Su un altro PC**: apri il programma, premi **📁 Cambia cartella dati…**, scegli la stessa cartella e rispondi **Sì** ("usa i dati che sono già nella cartella").
+
+**Se la cartella non si trova** all'avvio (NAS spento, Drive non ancora partito) il programma non crea un file vuoto: propone *Riprova*, un'altra cartella oppure di uscire. Se non riesce a salvare durante l'uso, chiede *Riprova*; con *Annulla* le modifiche restano nella finestra e vengono salvate al prossimo salvataggio riuscito.
+
+**Più PC**: meglio usare il programma su un PC alla volta. Se il file viene cambiato da un altro PC mentre il programma è aperto, tornando sulla finestra ti chiede se ricaricarlo; se salvi comunque, la versione dell'altro PC viene messa da parte in `backup/stato_veicolo_altro_pc_….json`, quindi non si perde nulla.
+
+**Togliere i dati da git** (una volta sola, dopo aver spostato la cartella dati), nel terminale dentro la cartella del programma (es. il terminale di VS Code):
+```bash
+git rm --cached stato_veicolo.json
+git commit -m "Dati spostati fuori da git"
+```
+Il file resta sul disco (non viene più aggiornato) e `.gitignore` lo esclude d'ora in poi.
+
 ## 💾 Backup
 
 I dati sono salvati in `stato_veicolo.json`, in modo sicuro (se il PC si spegne durante un salvataggio il file resta integro).
 
-Ogni giorno, al primo salvataggio, l'app ne fa una copia nella cartella `backup/` (`stato_veicolo_AAAA-MM-GG.json`) e tiene le ultime 30. Per recuperare i dati di un giorno: chiudi l'app e copia quel file sopra `stato_veicolo.json`.
+Ogni giorno, al primo salvataggio, l'app ne fa una copia nella cartella `backup/` accanto al file dati (`stato_veicolo_AAAA-MM-GG.json`) e tiene le ultime 30. Per recuperare i dati di un giorno: chiudi l'app e copia quel file sopra `stato_veicolo.json`. Google Drive e Dropbox tengono in più anche le versioni precedenti del file.
 
 ## 📝 Licenza
 

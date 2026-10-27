@@ -49,6 +49,12 @@ client_secret*.json
 backup/
 *.tmp
 
+# Dati e impostazioni di questo PC: i dati possono stare su Drive/Dropbox/NAS
+# (pulsante "Cambia cartella dati"). Il file dati era su git: per toglierlo una volta
+#   git rm --cached stato_veicolo.json
+stato_veicolo.json
+impostazioni_locali.json
+
 # Immagini e PDF generati dall'app
 riepilogo_settimana.png
 report_medicinali.png

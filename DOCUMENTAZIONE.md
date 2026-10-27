@@ -18,7 +18,7 @@ Applicazione desktop in **Python + tkinter**, a finestra singola con tre schede:
 
 Funzioni trasversali: semaforo verde/arancione/rosso, notifiche desktop (`plyer`), esportazione/importazione con Google Calendar (calendario **"Famiglia"**).
 
-Nessun database: tutto vive in un unico file JSON, `stato_veicolo.json`.
+Nessun database: tutto vive in un unico file JSON, `stato_veicolo.json`, che può stare nella cartella del programma oppure in una cartella sincronizzata (Google Drive, Dropbox, OneDrive) o sul NAS (§8a).
 
 ---
 
@@ -39,12 +39,15 @@ avvia_scadenze.bat
 All'interno di `main.py`:
 
 ```
-inizializza_db()          crea stato_veicolo.json con dati di esempio se non esiste
-tk.Tk() → ScadenzeApp     carica il JSON, eventuale migrazione, costruisce le schede
+(import)                  legge impostazioni_locali.json → usa_cartella_dati(): dove sta il file dati
+tk.Tk() (nascosta)
+prepara_file_dati(root)   cartella del programma: inizializza_db() crea stato_veicolo.json di esempio se manca;
+                          altra cartella (Drive, NAS...): se non la trova chiede Riprova / altra cartella / esci
+ScadenzeApp               carica il JSON, eventuale migrazione (_prepara_dati), costruisce le schede
 root.mainloop()
 ```
 
-Tutti i file (`stato_veicolo.json`, `backup/`, `credentials.json`, `token.pickle`, `riepilogo_settimana.png`) sono cercati nella **cartella del programma** (`CARTELLA_PROGRAMMA` in `main.py` e `google_calendar.py`), da qualunque cartella lo si avvii.
+I file del programma (`credentials.json`, `token.pickle`, `riepilogo_settimana.png`, `report_medicinali.*`, `impostazioni_locali.json`) sono cercati nella **cartella del programma** (`CARTELLA_PROGRAMMA` in `main.py` e `google_calendar.py`), da qualunque cartella lo si avvii. Il file dei dati `stato_veicolo.json` e la sua cartella `backup/` stanno invece in `CARTELLA_DATI`: di base la cartella del programma, oppure quella scelta con "📁 Cambia cartella dati" (§8a).
 
 Una versione con grafica moderna (customtkinter) è stata provata il 23/10/2026 e poi eliminata: si è preferita l'interfaccia classica (§13).
 
@@ -54,13 +57,14 @@ Una versione con grafica moderna (customtkinter) è stata provata il 23/10/2026 
 
 | File | Righe | Ruolo |
 |---|---|---|
-| `main.py` | ~2800 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
+| `main.py` | ~3100 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
 | `ricorrenze.py` | ~70 | `prossima_occorrenza()`: calcola la prossima data di una scadenza ricorrente |
 | `notifiche.py` | ~175 | Controllo scadenze e invio notifiche desktop con `plyer` |
 | `google_calendar.py` | ~545 | OAuth Google, export eventi (singoli e in blocco, con RRULE), import eventi |
 | `immagine_settimana.py` | ~910 | Immagini con Pillow: impegni della settimana (elenco/calendario), report medicinali e PDF A4; copia negli appunti (ctypes) |
-| `stato_veicolo.json` | — | Tutti i dati |
-| `backup/` | — | Una copia di `stato_veicolo.json` al giorno (`stato_veicolo_AAAA-MM-GG.json`), ultime 30 (esclusa da git) |
+| `stato_veicolo.json` | — | Tutti i dati (nella cartella dati, §8a) |
+| `backup/` | — | Accanto al file dati: una copia di `stato_veicolo.json` al giorno (`stato_veicolo_AAAA-MM-GG.json`, ultime 30) più le copie messe da parte (`_altro_pc_`, `_sostituito_`); esclusa da git |
+| `impostazioni_locali.json` | — | Solo per questo PC: `{"cartella_dati": "..."}` (esclusa da git) |
 | `avvia_scadenze.bat` | — | Avvio con installazione automatica delle librerie mancanti |
 | `requirements.txt` | — | `plyer`, `Pillow` + librerie Google |
 | `credentials.json` / `client_secret_*.json` | — | Credenziali OAuth (escluse da git) |
@@ -203,11 +207,26 @@ La ricorrenza si imposta con il pulsante 🔁 su ogni riga (finestra `_dialog_ri
 ## 8. Salvataggio
 
 - `salva_dati()` riscrive **tutto** il JSON ad ogni modifica, in modo sicuro: scrive `stato_veicolo.json.tmp` e poi lo sostituisce all'originale (`os.replace`), così un'interruzione a metà non lascia il file vuoto o rovinato.
-- Prima del primo salvataggio di ogni giorno, `_backup_giornaliero()` copia il file in `backup/stato_veicolo_AAAA-MM-GG.json` e tiene solo le ultime `GIORNI_BACKUP = 30` copie. Per tornare indietro basta copiare una di queste sopra `stato_veicolo.json` (ad app chiusa).
+- Prima del primo salvataggio di ogni giorno, `_backup_giornaliero()` copia il file in `backup/stato_veicolo_AAAA-MM-GG.json` (accanto al file dati) e tiene solo le ultime `GIORNI_BACKUP = 30` copie. Per tornare indietro basta copiare una di queste sopra `stato_veicolo.json` (ad app chiusa).
+- Se il salvataggio non riesce (cartella su NAS/Drive non raggiungibile, disco pieno...) compare "Riprova / Annulla": con Annulla le modifiche restano nella finestra e vengono scritte al prossimo salvataggio riuscito (si salva sempre tutto il JSON). `salva_dati()` restituisce `True`/`False`.
 - "Salva Scadenze Personali" / "Salva Scadenze Temporali" controllano **prima tutte le righe**: se una data o un orario è sbagliato non cambia nulla e il messaggio dice in quale voce è l'errore.
 - Aggiunta, eliminazione, rinomina, cambio veicolo, km e ricorrenza **salvano subito**.
 - Le modifiche fatte **a mano nei campi** (date, orari, km di tagliando…) vengono salvate **solo** premendo il relativo pulsante blu "Salva …". Se si cambia veicolo o si aggiunge una voce prima di aver salvato, l'interfaccia viene ricostruita dal file e quelle modifiche si perdono.
 - Dopo quasi ogni operazione l'interfaccia viene distrutta e ricostruita da zero (`ricarica_interfaccia()`), riaprendo di default la scheda *Scadenze Personali* (o *Veicoli* se si è cambiato veicolo).
+
+## 8a. Cartella dei dati (Drive, Dropbox, OneDrive, NAS)
+
+Aggiunta il 27/10/2026, per non dover più aggiornare git a ogni modifica: il file dati può stare in qualunque cartella. Google Drive per desktop, Dropbox e OneDrive su Windows sono normali cartelle sincronizzate (es. `G:\Il mio Drive\Scadenze`, `C:\Users\<nome>\Dropbox\Scadenze`), il NAS una cartella di rete (`\\NAS\condivisa\Scadenze` o un'unità come `Z:\`).
+
+- **Barra in fondo alla finestra**: "💾 Dati: <percorso>" con i pulsanti **📁 Cambia cartella dati…** e **📂 Apri cartella**.
+- **`cambia_cartella_dati()`**: si sceglie la cartella; controlla di poterci scrivere. Se lì non c'è `stato_veicolo.json` ci copia i dati attuali; se c'è già (es. messo da un altro PC) mostra cosa contengono i due file e chiede: *Sì* = usa i dati della cartella, *No* = sostituiscili con quelli attuali (il file della cartella viene prima copiato in `backup/stato_veicolo_sostituito_<data_ora>.json`), *Annulla*. Poi salva la scelta in `impostazioni_locali.json` (`imposta_cartella_dati()`), rilegge i dati da lì e ridisegna la finestra. Il file di prima resta dov'era ma non viene più aggiornato. Scegliendo la cartella del programma si torna come prima (la voce viene tolta da `impostazioni_locali.json`).
+- **`impostazioni_locali.json`** vale solo per il PC su cui sta (su un altro PC la cartella di Drive può avere un altro percorso: lì si sceglie con lo stesso pulsante, rispondendo *Sì* = usa i dati della cartella) ed è esclusa da git.
+- **All'avvio** (`prepara_file_dati()`), se la cartella scelta non si trova o non contiene il file, il programma **non** crea un file nuovo (rischierebbe di sovrascrivere i dati veri quando la cartella torna raggiungibile): chiede *Riprova* oppure di scegliere un'altra cartella che contenga `stato_veicolo.json`, oppure di uscire.
+- **Più PC sullo stesso file**: il programma ricorda il contenuto del file com'era quando l'ha letto o scritto (`_contenuto_noto`).
+  - Tornando sulla finestra (`<FocusIn>` → `_controlla_dati_cambiati()`), se il file è stato cambiato da un'altra parte chiede se ricaricarlo (`ricarica_dati()`, resta sulla stessa scheda). Il controllo guarda prima la data di modifica e poi il contenuto, e una volta risposto non chiede di nuovo per lo stesso cambiamento.
+  - Se si salva sopra una versione cambiata da un altro PC, quella versione viene prima copiata in `backup/stato_veicolo_altro_pc_<data_ora>.json` e compare un avviso: niente si perde, ma conviene usare il programma su un PC alla volta.
+  - Non c'è un'unione automatica delle modifiche fatte contemporaneamente su due PC.
+- I file del programma (credenziali Google, immagini e PDF generati) restano nella cartella del programma.
 
 ---
 
