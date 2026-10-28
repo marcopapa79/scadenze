@@ -57,7 +57,7 @@ Una versione con grafica moderna (customtkinter) è stata provata il 23/10/2026 
 
 | File | Righe | Ruolo |
 |---|---|---|
-| `main.py` | ~3100 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
+| `main.py` | ~3350 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
 | `ricorrenze.py` | ~70 | `prossima_occorrenza()`: calcola la prossima data di una scadenza ricorrente |
 | `notifiche.py` | ~175 | Controllo scadenze e invio notifiche desktop con `plyer` |
 | `google_calendar.py` | ~545 | OAuth Google, export eventi (singoli e in blocco, con RRULE), import eventi |
@@ -109,7 +109,8 @@ main.py ──► ricorrenze.py
       "ora_inizio": "16:00",               // "HH:MM" oppure null
       "ora_fine": "17:00",
       "ricorrenza": null,                  // oppure oggetto (sotto)
-      "categoria": "visita_prenotata"      // facoltativo: visita_prenotata | visita_da_prenotare | festa_compleanno
+      "sezione": "visite",                 // scelta nel modulo: visite | da_prenotare | scadenze | feste (vale lei, §5)
+      "categoria": "visita_prenotata"      // facoltativo: visita_prenotata | visita_da_prenotare | scadenza | festa_compleanno
     },
     "Basket": {
       "data": "2026-09-22", "con_orario": true, "ora_inizio": "17:30", "ora_fine": "18:30",
@@ -157,13 +158,20 @@ Un'unica funzione, `_sezione_personale(nome, voce)`, decide la sezione per la sc
 
 | Ordine | Condizione | Sezione |
 |---|---|---|
+| 0 | la voce ha il campo `sezione` (scelto nel modulo Nuova voce / ✏️ Modifica) | quella sezione, qualunque sia il nome |
 | 1 | `categoria` è `visita_prenotata` / `visita_da_prenotare` **oppure** il nome contiene `visita` o `medic` | Visite: **da prenotare** se il nome contiene `prenotare`, altrimenti **prenotate** |
 | 2 | `categoria == "festa_compleanno"` **oppure** il nome contiene `compleanno` o `festa` | Feste e compleanni |
 | 3 | tutto il resto | Scadenze |
 
-La `categoria` viene salvata dai pulsanti "+ Nuova Visita Prenotata", "+ Nuova Visita da Prenotare", "+ Festa o Compleanno" (e dall'import di Google per le visite), quindi una visita chiamata "Controllo oculistico" resta tra le visite anche senza la parola "visita". La categoria non si perde salvando né rinominando.
+Dal 28/10/2026 le voci create o modificate con il modulo hanno il campo **`sezione`** (più la `categoria` corrispondente, `CATEGORIA_SEZIONE`): vale quello, quindi "Dentista Aurora" può stare tra le visite prenotate senza la parola "visita" e "Oculista Andrés" tra quelle da prenotare senza "da prenotare". Le righe 1-3 valgono solo per le voci più vecchie (senza `sezione`) e per quelle importate da Google. Né `sezione` né `categoria` si perdono salvando o rinominando.
 
-Il pulsante "+ Nuova Visita da Prenotare" aggiunge automaticamente il suffisso ` da prenotare` al nome. Rinominare una voce può quindi **spostarla di sezione**.
+**Modulo Nuova voce / ✏️ Modifica** (`_modulo_voce_personale()`, finestra modale). I quattro pulsanti "+ Nuova …" (`aggiungi_scadenza_personale(tipo)`) lo aprono con la sezione del pulsante già scelta; ✏️ (`modifica_scadenza_personale()`) con i dati della voce (se nella riga c'è una data o un orario scritto e non ancora salvato, parte da quelli). Campi:
+- **Dove va**: le quattro sezioni (`SEZIONI_PERSONALI`: chiave, nome, etichetta della data, colore). Cambiando sezione cambia l'etichetta della data ("Data della visita", "Da prenotare entro il", …) e l'esempio sotto il nome; per una voce nuova cambia anche l'orario proposto (visite prenotate = "A un orario", le altre = "Tutto il giorno"), finché non lo si sceglie a mano. Se si sposta fuori da "Visite da prenotare" una voce che finisce con " da prenotare", quel pezzo viene tolto dal nome.
+- **Nome**: obbligatorio. Per una voce nuova, se esiste già si aggiunge ` (2)`; in modifica un nome già usato dà errore.
+- **Data**: `interpreta_data()` (GG-MM-AAAA, GG/MM/AA, GG/MM con l'anno più vicino).
+- **Orario**: "Tutto il giorno" oppure "A un orario" dalle … alle …; `interpreta_ora()` accetta `9`, `9:30`, `9.30`, `930`, `21,15`. Con "A un orario" l'inizio è obbligatorio, la fine facoltativa ma dopo l'inizio. Scrivere nei campi dell'orario sceglie da solo "A un orario".
+- **Si ripete**: "🔁 Imposta…" apre `_dialog_ricorrenza()`; sostituisce la domanda "si ripete?" che prima compariva dopo l'inserimento.
+- Invio = Salva, Esc = Annulla. Gli errori compaiono senza chiudere il modulo. Dopo il salvataggio la scheda viene ridisegnata (niente messaggio "aggiunta!").
 
 Se un nome esiste già, `_nome_personale_univoco()` aggiunge ` (2)`, ` (3)`, …
 

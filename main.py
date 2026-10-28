@@ -338,6 +338,18 @@ def interpreta_data(testo, riferimento):
     return min(candidati, key=lambda d: abs((d - riferimento).days)) if candidati else None
 
 
+def interpreta_ora(testo):
+    """Interpreta un orario scritto a mano: 9, 9:30, 9.30, 930, 21,15 ... -> "HH:MM" oppure None."""
+    corrisponde = re.fullmatch(r"(\d{1,2})(?:\s*[:.,h]\s*(\d{2})|(\d{2}))?", (testo or "").strip())
+    if not corrisponde:
+        return None
+    ore = int(corrisponde.group(1))
+    minuti = int(corrisponde.group(2) or corrisponde.group(3) or 0)
+    if ore > 23 or minuti > 59:
+        return None
+    return f"{ore:02d}:{minuti:02d}"
+
+
 def interpreta_scadenza_medicinale(testo):
     """Data di scadenza di un medicinale: GG-MM-AAAA oppure solo MM-AAAA / MM-AA come sulle confezioni.
 
@@ -1230,12 +1242,31 @@ class ScadenzeApp:
         voce_lower = voce.lower()
         return "compleanno" in voce_lower or "festa" in voce_lower
 
+    # Sezioni della scheda Scadenze Personali: (chiave, nome, etichetta della data, colore)
+    SEZIONI_PERSONALI = (
+        ("visite", "Visite prenotate", "Data della visita", "#009688"),
+        ("da_prenotare", "Visite da prenotare", "Da prenotare entro il", "#FF9800"),
+        ("scadenze", "Scadenze", "Data della scadenza", "#2196F3"),
+        ("feste", "Feste e compleanni", "Data", "#E91E63"),
+    )
+    CATEGORIA_SEZIONE = {"visite": "visita_prenotata", "da_prenotare": "visita_da_prenotare",
+                         "scadenze": "scadenza", "feste": "festa_compleanno"}
+    ESEMPI_NOME_PERSONALE = {
+        "visite": "es. Dentista Aurora, Cardiologo Marco",
+        "da_prenotare": "es. Oculista Andrés, Medico sportivo Aurora",
+        "scadenze": "es. IMU, ISEE, Passaporto, Bollo",
+        "feste": "es. Compleanno Marco, Festa Ludovica",
+    }
+
     def _sezione_personale(self, voce, data_obj=None):
         """Sezione di una scadenza personale: 'visite', 'da_prenotare', 'feste' o 'scadenze'.
 
-        Conta prima la categoria salvata (visita / festa), poi le parole nel nome.
-        Tra visite prenotate e da prenotare decide il nome ("... da prenotare").
+        Se la voce ha la sezione scelta nel modulo (campo "sezione") vale quella.
+        Per le voci più vecchie conta la categoria salvata (visita / festa), poi le parole nel nome;
+        tra visite prenotate e da prenotare decide il nome ("... da prenotare").
         """
+        if isinstance(data_obj, dict) and data_obj.get("sezione") in self.CATEGORIA_SEZIONE:
+            return data_obj["sezione"]
         categoria = data_obj.get("categoria") if isinstance(data_obj, dict) else None
         if categoria in ("visita_prenotata", "visita_da_prenotare") or self._is_visita_personale(voce):
             return "da_prenotare" if self._is_visita_da_prenotare(voce) else "visite"
@@ -2842,105 +2873,275 @@ class ScadenzeApp:
         messagebox.showinfo("Successo", f"Scadenza '{nome_scadenza}' eliminata!")
     
     def aggiungi_scadenza_personale(self, tipo="scadenza"):
-        """Aggiunge una nuova scadenza personale, visita, festa o compleanno."""
-        if tipo == "visita_prenotata":
-            titolo = "Nuova Visita Prenotata"
-            nome_base = simpledialog.askstring(
-                titolo,
-                "Nome visita (es: Visita cardiologica, Controllo oculistico):"
-            )
-            if not nome_base:
-                return
-            nome_finale = nome_base.strip()
-            prompt_data = "Data visita (GG-MM-AAAA):"
-        elif tipo == "visita_da_prenotare":
-            titolo = "Nuova Visita da Prenotare"
-            nome_base = simpledialog.askstring(
-                titolo,
-                "Nome visita da prenotare (es: Visita cardiologica, Controllo oculistico):"
-            )
-            if not nome_base:
-                return
-            nome_finale = f"{nome_base.strip()} da prenotare"
-            prompt_data = "Da prenotare entro il (GG-MM-AAAA):"
-        elif tipo == "festa_compleanno":
-            titolo = "Nuova Festa o Compleanno"
-            nome_finale = simpledialog.askstring(
-                titolo,
-                "Nome della festa o del compleanno (es: Compleanno Marco, Festa Ludovica):"
-            )
-            if not nome_finale:
-                return
-            nome_finale = nome_finale.strip()
-            prompt_data = "Data della festa o del compleanno (GG-MM-AAAA):"
-        else:
-            titolo = "Nuova Scadenza"
-            nome_finale = simpledialog.askstring(
-                titolo,
-                "Nome della scadenza (es: IMU, ISEE, Passaporto):"
-            )
-            if not nome_finale:
-                return
-            nome_finale = nome_finale.strip()
-            prompt_data = "Data scadenza (GG-MM-AAAA):"
+        """Nuova voce personale: un modulo chiede sezione, nome, data, orario e ripetizione.
 
-        data = simpledialog.askstring(titolo, prompt_data)
-        if not data:
+        tipo (dal pulsante premuto) sceglie solo la sezione proposta: nel modulo si può cambiare.
+        """
+        sezione = {"visita_prenotata": "visite", "visita_da_prenotare": "da_prenotare",
+                   "festa_compleanno": "feste"}.get(tipo, "scadenze")
+        risultato = self._modulo_voce_personale("Nuova voce", sezione=sezione,
+                                                con_orario=(sezione == "visite"))
+        if not risultato:
             return
-
-        try:
-            data_obj = datetime.strptime(data, "%d-%m-%Y")
-            data = data_obj.strftime("%Y-%m-%d")
-        except ValueError:
-            messagebox.showerror("Errore", "Data non valida! Usa il formato GG-MM-AAAA")
-            return
-
-        nome_finale = self._nome_personale_univoco(nome_finale)
-        self.dati_completi["scadenze_personali"][nome_finale] = {
-            "data": data,
-            "con_orario": False,
-            "ora_inizio": None,
-            "ora_fine": None
-        }
-        # La categoria tiene la voce nella sua sezione anche se il nome non contiene "visita"/"compleanno"
-        categoria = {"visita_prenotata": "visita_prenotata", "visita_da_prenotare": "visita_da_prenotare",
-                     "festa_compleanno": "festa_compleanno"}.get(tipo)
-        if categoria:
-            self.dati_completi["scadenze_personali"][nome_finale]["categoria"] = categoria
+        nome_finale = self._nome_personale_univoco(risultato.pop("nome"))
+        self.dati_completi["scadenze_personali"][nome_finale] = risultato
         salva_dati(self.dati_completi)
-
-        if messagebox.askyesno("Ricorrenza", f"'{nome_finale}' si ripete nel tempo (es. ogni settimana)?"):
-            ricorrenza = self._dialog_ricorrenza(nome_finale, None, data)
-            if ricorrenza is not None:
-                self.dati_completi["scadenze_personali"][nome_finale]["ricorrenza"] = ricorrenza
-                salva_dati(self.dati_completi)
-
         self.ricarica_interfaccia()
-        messagebox.showinfo("Successo", f"Scadenza '{nome_finale}' aggiunta!")
-    
+
     def modifica_scadenza_personale(self, nome_scadenza):
-        """Modifica il nome di una scadenza personale"""
-        nuovo_nome = simpledialog.askstring(
-            "Modifica Scadenza",
-            f"Nuovo nome per '{nome_scadenza}':",
-            initialvalue=nome_scadenza
-        )
-        
-        if not nuovo_nome or nuovo_nome == nome_scadenza:
+        """✏️ Modifica: nome, sezione (si può spostare), data, orario e ripetizione in un unico modulo."""
+        voci = self.dati_completi["scadenze_personali"]
+        data_obj = voci.get(nome_scadenza)
+        if data_obj is None:
             return
-        
-        # Controlla se il nuovo nome esiste già
-        if nuovo_nome in self.dati_completi["scadenze_personali"]:
-            messagebox.showerror("Errore", f"Una scadenza con il nome '{nuovo_nome}' esiste già!")
+        if isinstance(data_obj, str):
+            data_obj = {"data": data_obj, "con_orario": False, "ora_inizio": None, "ora_fine": None}
+        data_iso = data_obj.get("data")
+        con_orario = bool(data_obj.get("con_orario"))
+        ora_inizio, ora_fine = data_obj.get("ora_inizio"), data_obj.get("ora_fine")
+        # Se nella riga è stato scritto qualcosa di valido e non ancora salvato, il modulo parte da lì
+        widgets = self.scadenze_personali_widgets.get(nome_scadenza)
+        if widgets:
+            data_riga = interpreta_data(widgets["entry"].get(), date.today())
+            if data_riga:
+                data_iso = data_riga.isoformat()
+            if not widgets["var_tutto_giorno"].get():
+                inizio_riga = interpreta_ora(widgets["entry_inizio"].get())
+                if inizio_riga:
+                    con_orario, ora_inizio = True, inizio_riga
+                    ora_fine = interpreta_ora(widgets["entry_fine"].get()) or ora_fine
+            else:
+                con_orario = False
+
+        risultato = self._modulo_voce_personale(
+            f"Modifica - {nome_scadenza}", nome=nome_scadenza,
+            sezione=self._sezione_personale(nome_scadenza, data_obj), data_iso=data_iso,
+            con_orario=con_orario, ora_inizio=ora_inizio, ora_fine=ora_fine,
+            ricorrenza=data_obj.get("ricorrenza"), nome_originale=nome_scadenza)
+        if not risultato:
             return
-        
-        # Sposta la scadenza dal vecchio nome al nuovo
-        self.dati_completi["scadenze_personali"][nuovo_nome] = self.dati_completi["scadenze_personali"].pop(nome_scadenza)
+        nuovo_nome = risultato.pop("nome")
+        voce = dict(data_obj)
+        voce.update(risultato)  # tiene gli altri campi
+        if nuovo_nome != nome_scadenza:
+            del voci[nome_scadenza]
+        voci[nuovo_nome] = voce
         salva_dati(self.dati_completi)
-        
         self.ricarica_interfaccia()
-        messagebox.showinfo("Successo", f"Scadenza rinominata da '{nome_scadenza}' a '{nuovo_nome}'!")
-    
+
+    def _modulo_voce_personale(self, titolo, nome="", sezione="scadenze", data_iso=None, con_orario=False,
+                               ora_inizio=None, ora_fine=None, ricorrenza=None, nome_originale=None):
+        """Finestra unica per creare o modificare una voce personale.
+
+        Chiede: sezione (Visite prenotate / da prenotare / Scadenze / Feste e compleanni), nome,
+        data, "Tutto il giorno" oppure "A un orario" (dalle ... alle ...) e la ripetizione.
+        Restituisce i campi da salvare ({"nome", "data", "con_orario", "ora_inizio", "ora_fine",
+        "ricorrenza", "sezione", "categoria"}) oppure None se si annulla.
+        """
+        win = tk.Toplevel(self.root)
+        win.title(titolo)
+        win.configure(bg=COLORE_SFONDO)
+        win.transient(self.root)
+        win.resizable(False, False)
+        risultato = {}
+        stato = {"ricorrenza": ricorrenza, "orario_scelto": nome_originale is not None}
+
+        corpo = tk.Frame(win, bg=COLORE_SFONDO, padx=16, pady=12)
+        corpo.pack(fill=tk.BOTH, expand=True)
+        grassetto = tkfont.Font(family="Helvetica", size=10, weight="bold")
+
+        def etichetta(testo, riga):
+            tk.Label(corpo, text=testo, font=grassetto, bg=COLORE_SFONDO).grid(
+                row=riga, column=0, sticky=tk.NW, padx=(0, 10), pady=6)
+
+        # Sezione
+        etichetta("Dove va:", 0)
+        var_sezione = tk.StringVar(value=sezione)
+        riquadro_sezioni = tk.Frame(corpo, bg=COLORE_SFONDO)
+        riquadro_sezioni.grid(row=0, column=1, sticky=tk.W, pady=6)
+        for i, (chiave, testo, _, colore) in enumerate(self.SEZIONI_PERSONALI):
+            tk.Radiobutton(riquadro_sezioni, text=testo, variable=var_sezione, value=chiave,
+                           font=grassetto, fg=colore, bg=COLORE_SFONDO, activebackground=COLORE_SFONDO,
+                           selectcolor="white").grid(row=i // 2, column=i % 2, sticky=tk.W, padx=(0, 14))
+
+        # Nome
+        etichetta("Nome:", 1)
+        riquadro_nome = tk.Frame(corpo, bg=COLORE_SFONDO)
+        riquadro_nome.grid(row=1, column=1, sticky=tk.W, pady=6)
+        entry_nome = tk.Entry(riquadro_nome, font=self.normal_font, width=42)
+        entry_nome.pack(anchor=tk.W)
+        entry_nome.insert(0, nome)
+        lbl_esempio = tk.Label(riquadro_nome, text="", font=self.normal_font, bg=COLORE_SFONDO, fg="#757575")
+        lbl_esempio.pack(anchor=tk.W)
+
+        # Data
+        lbl_data = tk.Label(corpo, text="", font=grassetto, bg=COLORE_SFONDO)
+        lbl_data.grid(row=2, column=0, sticky=tk.W, padx=(0, 10), pady=6)
+        riquadro_data = tk.Frame(corpo, bg=COLORE_SFONDO)
+        riquadro_data.grid(row=2, column=1, sticky=tk.W, pady=6)
+        entry_data = tk.Entry(riquadro_data, font=self.normal_font, width=14)
+        entry_data.pack(side=tk.LEFT)
+        if data_iso:
+            entry_data.insert(0, data_iso_a_italiana(data_iso))
+        tk.Label(riquadro_data, text="  GG-MM-AAAA (va bene anche 5/11 o 5-11-26)", font=self.normal_font,
+                 bg=COLORE_SFONDO, fg="#757575").pack(side=tk.LEFT)
+
+        # Orario
+        etichetta("Orario:", 3)
+        var_orario = tk.BooleanVar(value=bool(con_orario))
+        riquadro_orario = tk.Frame(corpo, bg=COLORE_SFONDO)
+        riquadro_orario.grid(row=3, column=1, sticky=tk.W, pady=6)
+
+        def scegli_orario():
+            stato["orario_scelto"] = True
+            aggiorna_orario()
+
+        tk.Radiobutton(riquadro_orario, text="Tutto il giorno", variable=var_orario, value=False,
+                       command=scegli_orario, font=self.normal_font, bg=COLORE_SFONDO,
+                       activebackground=COLORE_SFONDO).grid(row=0, column=0, columnspan=5, sticky=tk.W)
+        tk.Radiobutton(riquadro_orario, text="A un orario:  dalle", variable=var_orario, value=True,
+                       command=scegli_orario, font=self.normal_font, bg=COLORE_SFONDO,
+                       activebackground=COLORE_SFONDO).grid(row=1, column=0, sticky=tk.W)
+        entry_inizio = tk.Entry(riquadro_orario, font=self.normal_font, width=7)
+        entry_inizio.grid(row=1, column=1, padx=4)
+        tk.Label(riquadro_orario, text="alle", font=self.normal_font, bg=COLORE_SFONDO).grid(row=1, column=2)
+        entry_fine = tk.Entry(riquadro_orario, font=self.normal_font, width=7)
+        entry_fine.grid(row=1, column=3, padx=4)
+        tk.Label(riquadro_orario, text="(fine facoltativa, es. 9:30)", font=self.normal_font,
+                 bg=COLORE_SFONDO, fg="#757575").grid(row=1, column=4, sticky=tk.W)
+        if ora_inizio:
+            entry_inizio.insert(0, ora_inizio)
+        if ora_fine:
+            entry_fine.insert(0, ora_fine)
+
+        def aggiorna_orario():
+            colore = "#212121" if var_orario.get() else "#BDBDBD"
+            entry_inizio.config(fg=colore)
+            entry_fine.config(fg=colore)
+
+        def scrive_orario(event):
+            # Scrivere un orario sceglie da solo "A un orario"
+            if event.char and event.char.isprintable() and not var_orario.get():
+                var_orario.set(True)
+                scegli_orario()
+
+        entry_inizio.bind("<Key>", scrive_orario)
+        entry_fine.bind("<Key>", scrive_orario)
+
+        # Ripetizione
+        etichetta("Si ripete:", 4)
+        riquadro_rip = tk.Frame(corpo, bg=COLORE_SFONDO)
+        riquadro_rip.grid(row=4, column=1, sticky=tk.W, pady=6)
+        lbl_rip = tk.Label(riquadro_rip, text="", font=self.normal_font, bg=COLORE_SFONDO)
+        lbl_rip.pack(side=tk.LEFT)
+
+        def aggiorna_ripetizione():
+            lbl_rip.config(text=self._descrizione_ricorrenza(stato["ricorrenza"]) or "No")
+
+        def imposta_ripetizione():
+            data = interpreta_data(entry_data.get(), date.today())
+            nuova = self._dialog_ricorrenza(entry_nome.get().strip() or "nuova voce", stato["ricorrenza"],
+                                            data.isoformat() if data else None)
+            win.grab_set()  # il dialogo della ripetizione si era preso la finestra
+            win.lift()
+            if nuova is not None:
+                stato["ricorrenza"] = nuova
+                aggiorna_ripetizione()
+
+        tk.Button(riquadro_rip, text="🔁 Imposta…", command=imposta_ripetizione, font=self.normal_font,
+                  bg="#B0BEC5", fg="white").pack(side=tk.LEFT, padx=10)
+
+        # Cambiando sezione: etichetta della data, esempio di nome e, per una voce nuova, orario proposto
+        def cambia_sezione(*_):
+            chiave = var_sezione.get()
+            _, _, testo_data, _ = next(s for s in self.SEZIONI_PERSONALI if s[0] == chiave)
+            lbl_data.config(text=testo_data + ":")
+            lbl_esempio.config(text=self.ESEMPI_NOME_PERSONALE.get(chiave, ""))
+            if not stato["orario_scelto"]:
+                var_orario.set(chiave == "visite")
+                aggiorna_orario()
+            # "Visita X da prenotare" spostata tra le prenotate: il "da prenotare" non serve più
+            testo_nome = entry_nome.get()
+            if chiave != "da_prenotare" and testo_nome.lower().rstrip().endswith(" da prenotare"):
+                entry_nome.delete(0, tk.END)
+                entry_nome.insert(0, testo_nome.rstrip()[:-len(" da prenotare")].rstrip())
+
+        var_sezione.trace_add("write", cambia_sezione)
+
+        def salva(event=None):
+            nuovo_nome = entry_nome.get().strip()
+            if not nuovo_nome:
+                messagebox.showerror("Manca il nome", "Scrivi il nome.", parent=win)
+                entry_nome.focus_set()
+                return
+            if (nome_originale is not None and nuovo_nome != nome_originale
+                    and nuovo_nome in self.dati_completi["scadenze_personali"]):
+                messagebox.showerror("Nome già usato", f"C'è già una voce che si chiama '{nuovo_nome}'.",
+                                     parent=win)
+                entry_nome.focus_set()
+                return
+            data = interpreta_data(entry_data.get(), date.today())
+            if not data:
+                messagebox.showerror("Data non valida", "Scrivi la data come GG-MM-AAAA (es. 05-11-2026).",
+                                     parent=win)
+                entry_data.focus_set()
+                return
+            inizio = fine = None
+            if var_orario.get():
+                inizio = interpreta_ora(entry_inizio.get())
+                if not inizio:
+                    messagebox.showerror("Orario", "Scrivi l'ora di inizio (es. 9:30) oppure scegli "
+                                         "\"Tutto il giorno\".", parent=win)
+                    entry_inizio.focus_set()
+                    return
+                if entry_fine.get().strip():
+                    fine = interpreta_ora(entry_fine.get())
+                    if not fine:
+                        messagebox.showerror("Orario", "L'ora di fine non è valida (es. 10:30). "
+                                             "Se non serve lasciala vuota.", parent=win)
+                        entry_fine.focus_set()
+                        return
+                    if fine <= inizio:
+                        messagebox.showerror("Orario", "L'ora di fine deve essere dopo quella di inizio.",
+                                             parent=win)
+                        entry_fine.focus_set()
+                        return
+            chiave = var_sezione.get()
+            risultato.update({
+                "nome": nuovo_nome,
+                "data": data.isoformat(),
+                "con_orario": bool(inizio),
+                "ora_inizio": inizio,
+                "ora_fine": fine,
+                "ricorrenza": stato["ricorrenza"],
+                "sezione": chiave,
+                "categoria": self.CATEGORIA_SEZIONE[chiave],
+            })
+            win.destroy()
+
+        pulsanti = tk.Frame(win, bg=COLORE_SFONDO)
+        pulsanti.pack(fill=tk.X, padx=16, pady=(0, 14))
+        tk.Button(pulsanti, text="💾 Salva", command=salva, bg="#4CAF50", fg="white",
+                  font=self.normal_font, width=12).pack(side=tk.LEFT)
+        tk.Button(pulsanti, text="Annulla", command=win.destroy, bg="#9E9E9E", fg="white",
+                  font=self.normal_font, width=10).pack(side=tk.LEFT, padx=8)
+        win.bind("<Return>", salva)
+        win.bind("<Escape>", lambda e: win.destroy())
+
+        cambia_sezione()
+        aggiorna_orario()
+        aggiorna_ripetizione()
+        # Al centro della finestra principale
+        win.update_idletasks()
+        x = self.root.winfo_rootx() + max(0, (self.root.winfo_width() - win.winfo_width()) // 2)
+        y = self.root.winfo_rooty() + max(0, (self.root.winfo_height() - win.winfo_height()) // 3)
+        win.geometry(f"+{x}+{y}")
+        win.grab_set()
+        entry_nome.focus_set()
+        entry_nome.select_range(0, tk.END)
+        win.wait_window()
+        return risultato or None
+
     def gestisci_ricorrenza_personale(self, nome_scadenza):
         """Apre il dialogo di ricorrenza e salva la nuova configurazione per la scadenza."""
         voce = self.dati_completi["scadenze_personali"].get(nome_scadenza)

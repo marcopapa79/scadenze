@@ -100,9 +100,13 @@ python main.py
 - **+ Nuova Scadenza Km**: Aggiunge scadenze chilometriche
 
 **Tab Scadenze Personali:**
-- **+ Nuova Scadenza**: Aggiunge una nuova scadenza personale (ISEE, Casa, documenti, ecc.)
-- **+ Nuova Visita Prenotata**: Aggiunge una visita gia prenotata
-- **+ Nuova Visita da Prenotare**: Aggiunge un promemoria visita da prenotare entro una data
+- **+ Nuova Scadenza** / **+ Nuova Visita Prenotata** / **+ Nuova Visita da Prenotare** / **+ Festa o Compleanno**: aprono lo stesso modulo, con già scelta la sezione del pulsante. Nel modulo si sceglie:
+  - **Dove va**: Visite prenotate, Visite da prenotare, Scadenze o Feste e compleanni. Conta la sezione scelta, non il nome: non serve che inizi con "Visita"
+  - **Nome** e **Data** (`GG-MM-AAAA`, va bene anche `5/11` o `5-11-26`)
+  - **Orario**: *Tutto il giorno* oppure *A un orario* dalle … alle … (la fine è facoltativa; si può scrivere `9`, `9:30`, `9.30`, `930`). Scrivendo un orario si sceglie da solo "A un orario"; per le visite prenotate è proposto già "A un orario"
+  - **Si ripete**: con *🔁 Imposta…* (ogni settimana / mese)
+  - Invio = Salva, Esc = Annulla
+- **✏️** (pulsante arancione): apre lo stesso modulo per cambiare nome, data, orario, ripetizione e **spostare la voce in un'altra sezione**. Spostando una "… da prenotare" tra le visite prenotate, il "da prenotare" viene tolto dal nome
 - **✕** (pulsante rosso): Elimina la scadenza specifica
 - **🔔 Controlla Scadenze**: Verifica tutte le scadenze (veicoli + personali)
 - **📅 Esporta su Calendar**: Esporta scadenze personali su Google Calendar
