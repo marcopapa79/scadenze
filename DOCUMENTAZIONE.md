@@ -57,7 +57,7 @@ Una versione con grafica moderna (customtkinter) è stata provata il 23/10/2026 
 
 | File | Righe | Ruolo |
 |---|---|---|
-| `main.py` | ~3350 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
+| `main.py` | ~3430 | Applicazione (classe `ScadenzeApp`): logica, lettura/scrittura JSON con copie di sicurezza, conversione date, semaforo, interfaccia classica tkinter |
 | `ricorrenze.py` | ~70 | `prossima_occorrenza()`: calcola la prossima data di una scadenza ricorrente |
 | `notifiche.py` | ~175 | Controllo scadenze e invio notifiche desktop con `plyer` |
 | `google_calendar.py` | ~545 | OAuth Google, export eventi (singoli e in blocco, con RRULE), import eventi |
@@ -101,6 +101,10 @@ main.py ──► ricorrenze.py
     }
   },
   "veicolo_selezionato": "Corolla (GD028MR)",
+  "ultimo_aggiornamento": {                // scritto da salva_dati() a ogni salvataggio
+    "quando": "2026-11-05T09:50:12",
+    "computer": "DESKTOP-ABC"              // platform.node() del PC che ha salvato
+  },
 
   "scadenze_personali": {
     "Visita Fazi": {                       // chiave = nome visualizzato (univoco)
@@ -227,7 +231,8 @@ La ricorrenza si imposta con il pulsante 🔁 su ogni riga (finestra `_dialog_ri
 
 Aggiunta il 27/10/2026, per non dover più aggiornare git a ogni modifica: il file dati può stare in qualunque cartella. Google Drive per desktop, Dropbox e OneDrive su Windows sono normali cartelle sincronizzate (es. `G:\Il mio Drive\Scadenze`, `C:\Users\<nome>\Dropbox\Scadenze`), il NAS una cartella di rete (`\\NAS\condivisa\Scadenze` o un'unità come `Z:\`).
 
-- **Barra in fondo alla finestra**: "💾 Dati: <percorso>" con i pulsanti **📁 Cambia cartella dati…** e **📂 Apri cartella**.
+- **Data e ora dell'ultimo aggiornamento** (dal 05/11/2026): `salva_dati()` scrive nei dati `ultimo_aggiornamento` = quando e da quale PC (`NOME_COMPUTER = platform.node()`). È mostrato **in alto a destra**, nella riga delle schede ("🕒 Dati aggiornati: gio 05/11/2026 alle 09:50 (da questo PC)" oppure "(dal PC UFFICIO)"), e **nella barra in fondo**, da `descrivi_ultimo_aggiornamento()`. Le etichette si aggiornano a ogni salvataggio (funzione `AL_SALVATAGGIO`, impostata dalla finestra) e quando si ricaricano i dati. Per i file salvati prima che esistesse il timbro si mostra la data di modifica del file ("(data del file)"). Serve a confrontare i PC: se su un PC la data è più vecchia, lì il file non è ancora aggiornato (es. Drive non ha ancora sincronizzato). Lo stesso testo compare nella domanda "Dati cambiati" (versione nel file e versione nella finestra) e in "Cambia cartella dati".
+- **Barra in fondo alla finestra**: "🕒 Ultimo aggiornamento dati: …", "💾 Dati: <percorso>" con i pulsanti **📁 Cambia cartella dati…** e **📂 Apri cartella**.
 - **`cambia_cartella_dati()`**: si sceglie la cartella; controlla di poterci scrivere. Se lì non c'è `stato_veicolo.json` ci copia i dati attuali; se c'è già (es. messo da un altro PC) mostra cosa contengono i due file e chiede: *Sì* = usa i dati della cartella, *No* = sostituiscili con quelli attuali (il file della cartella viene prima copiato in `backup/stato_veicolo_sostituito_<data_ora>.json`), *Annulla*. Poi salva la scelta in `impostazioni_locali.json` (`imposta_cartella_dati()`), rilegge i dati da lì e ridisegna la finestra. Il file di prima resta dov'era ma non viene più aggiornato. Scegliendo la cartella del programma si torna come prima (la voce viene tolta da `impostazioni_locali.json`).
 - **`impostazioni_locali.json`** vale solo per il PC su cui sta (su un altro PC la cartella di Drive può avere un altro percorso: lì si sceglie con lo stesso pulsante, rispondendo *Sì* = usa i dati della cartella) ed è esclusa da git.
 - **All'avvio** (`prepara_file_dati()`), se la cartella scelta non si trova o non contiene il file, il programma **non** crea un file nuovo (rischierebbe di sovrascrivere i dati veri quando la cartella torna raggiungibile): chiede *Riprova* oppure di scegliere un'altra cartella che contenga `stato_veicolo.json`, oppure di uscire.

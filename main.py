@@ -2,6 +2,7 @@ import calendar
 import glob
 import json
 import os
+import platform
 import re
 import shutil
 from datetime import date, datetime, timedelta
@@ -249,6 +250,42 @@ def _backup_giornaliero():
         _copia_di_sicurezza(CARTELLA_BACKUP_PROGRAMMA, GIORNI_BACKUP_LOCALE, COPIE_BACKUP_LOCALE)
 
 
+# Nome di questo computer, salvato nei dati insieme all'ora di ogni salvataggio
+NOME_COMPUTER = platform.node() or "senza nome"
+# Funzione chiamata dopo ogni salvataggio riuscito (la finestra aggiorna "Dati aggiornati")
+AL_SALVATAGGIO = None
+GIORNI_BREVI = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
+
+
+def descrivi_ultimo_aggiornamento(dati, percorso=None):
+    """Es. "gio 05/11/2026 alle 09:50 (da questo PC)" oppure "(dal PC UFFICIO)".
+
+    Usa il timbro "ultimo_aggiornamento" salvato nei dati; i file salvati prima che esistesse
+    non lo hanno: allora usa la data di modifica del file.
+    """
+    info = dati.get("ultimo_aggiornamento") if isinstance(dati, dict) else None
+    quando = computer = None
+    if isinstance(info, dict):
+        try:
+            quando = datetime.fromisoformat(info.get("quando") or "")
+        except (TypeError, ValueError):
+            quando = None
+        computer = info.get("computer")
+    if quando is None:
+        try:
+            quando = datetime.fromtimestamp(os.path.getmtime(percorso or DB_FILE))
+        except OSError:
+            return "non disponibile"
+        origine = " (data del file)"
+    elif not computer:
+        origine = ""
+    elif computer == NOME_COMPUTER:
+        origine = " (da questo PC)"
+    else:
+        origine = f" (dal PC {computer})"
+    return f"{GIORNI_BREVI[quando.weekday()]} {quando:%d/%m/%Y} alle {quando:%H:%M}{origine}"
+
+
 def salva_dati(dati):
     """Salva tutti i dati nel file, in modo sicuro (vedi _scrivi_json_sicuro).
 
@@ -256,9 +293,13 @@ def salva_dati(dati):
       Dropbox, NAS), quella versione viene prima copiata in backup/ e compare un avviso.
     - Se la cartella non è raggiungibile (NAS spento, Drive non avviato...) chiede di riprovare;
       con Annulla le modifiche restano nella finestra e partono col prossimo salvataggio.
+    Ogni salvataggio scrive nei dati anche quando e da quale PC ("ultimo_aggiornamento"),
+    mostrato in alto e in basso nella finestra.
     Restituisce True se ha salvato.
     """
     global _contenuto_noto, _mtime_visto
+    dati["ultimo_aggiornamento"] = {"quando": datetime.now().isoformat(timespec="seconds"),
+                                    "computer": NOME_COMPUTER}
     while True:
         copia_altra_versione = None
         try:
@@ -277,6 +318,8 @@ def salva_dati(dati):
                     "e premi Riprova.\nCon Annulla le modifiche restano in questa finestra e "
                     "vengono salvate al prossimo salvataggio riuscito."):
                 return False
+    if AL_SALVATAGGIO:
+        AL_SALVATAGGIO()
     if copia_altra_versione:
         messagebox.showwarning(
             "Dati cambiati da un altro computer",
@@ -415,8 +458,10 @@ def fine_dopo_apertura(apertura, n, unita):
 
 class ScadenzeApp:
     def __init__(self, root):
+        global AL_SALVATAGGIO
         self.root = root
         self._prepara_finestra()
+        AL_SALVATAGGIO = self._aggiorna_ultimo_aggiornamento
 
         self.dati_completi = carica_dati()
         self._prepara_dati()
@@ -454,10 +499,19 @@ class ScadenzeApp:
 
     def _controlla_dati_cambiati(self):
         try:
-            if file_dati_cambiato_da_fuori() and messagebox.askyesno(
+            if not file_dati_cambiato_da_fuori():
+                return
+            try:
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    nel_file = descrivi_ultimo_aggiornamento(json.load(f))
+            except (OSError, ValueError):
+                nel_file = "?"
+            if messagebox.askyesno(
                     "Dati cambiati",
                     "Il file dei dati è stato cambiato da un'altra parte (un altro PC, attraverso "
                     "Drive, Dropbox o il NAS) mentre il programma era aperto.\n\n"
+                    f"Nel file: aggiornati {nel_file}\n"
+                    f"In questa finestra: aggiornati {descrivi_ultimo_aggiornamento(self.dati_completi)}\n\n"
                     "Vuoi ricaricarlo adesso? (consigliato)\n\n"
                     "No = continui con i dati di questa finestra; al prossimo salvataggio l'altra "
                     "versione verrà messa da parte nella cartella backup.", parent=self.root):
@@ -482,13 +536,22 @@ class ScadenzeApp:
         self._prepara_dati()
         self.ricarica_interfaccia(tab_da_aprire=scheda)
 
+    def _aggiorna_ultimo_aggiornamento(self):
+        """Scrive data, ora e PC dell'ultimo salvataggio dei dati in alto e in basso nella finestra."""
+        testo = descrivi_ultimo_aggiornamento(self.dati_completi)
+        for nome, prefisso in (("lbl_aggiornato_alto", "🕒 Dati aggiornati: "),
+                               ("lbl_aggiornato_basso", "🕒 Ultimo aggiornamento dati: ")):
+            etichetta = getattr(self, nome, None)
+            try:
+                if etichetta is not None and etichetta.winfo_exists():
+                    etichetta.config(text=prefisso + testo)
+            except tk.TclError:
+                pass
+
     @staticmethod
     def _descrivi_dati(dati, percorso):
-        try:
-            quando = datetime.fromtimestamp(os.path.getmtime(percorso)).strftime("%d/%m/%Y %H:%M")
-        except OSError:
-            quando = "?"
-        return (f"salvati il {quando}: {len(dati.get('scadenze_personali', {}))} scadenze personali, "
+        quando = descrivi_ultimo_aggiornamento(dati, percorso)
+        return (f"aggiornati {quando}: {len(dati.get('scadenze_personali', {}))} scadenze personali, "
                 f"{len(dati.get('medicinali', []))} medicinali, {len(dati.get('veicoli', {}))} veicoli")
 
     def cambia_cartella_dati(self):
@@ -985,6 +1048,10 @@ class ScadenzeApp:
         # Barra in fondo: dove sono salvati i dati
         barra_dati = tk.Frame(self.root, bg=COLORE_SFONDO)
         barra_dati.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 6))
+        grassetto = tkfont.Font(family="Helvetica", size=10, weight="bold")
+        self.lbl_aggiornato_basso = tk.Label(barra_dati, text="", font=grassetto, bg=COLORE_SFONDO,
+                                             fg="#37474F")
+        self.lbl_aggiornato_basso.pack(side=tk.LEFT, padx=(0, 16))
         tk.Label(barra_dati, text=f"💾 Dati: {DB_FILE}", font=self.normal_font, bg=COLORE_SFONDO,
                  fg="#455A64").pack(side=tk.LEFT)
         tk.Button(barra_dati, text="📁 Cambia cartella dati…", command=self.cambia_cartella_dati,
@@ -995,6 +1062,11 @@ class ScadenzeApp:
         # Crea Notebook (tabs)
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # In alto a destra, nella riga delle schede: quando sono stati aggiornati i dati
+        self.lbl_aggiornato_alto = tk.Label(self.root, text="", font=grassetto, bg=COLORE_SFONDO, fg="#37474F")
+        self.lbl_aggiornato_alto.place(relx=1.0, x=-12, y=7, anchor="ne")
+        self._aggiorna_ultimo_aggiornamento()
         
         # Tab 1: Veicoli
         tab_veicoli = tk.Frame(self.notebook, bg=COLORE_SFONDO)

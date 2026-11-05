@@ -179,6 +179,8 @@ Il file dei dati `stato_veicolo.json` può stare in qualunque cartella, così no
 
 **Se la cartella non si trova** all'avvio (NAS spento, Drive non ancora partito) il programma non crea un file vuoto: propone *Riprova*, un'altra cartella oppure di uscire. Se non riesce a salvare durante l'uso, chiede *Riprova*; con *Annulla* le modifiche restano nella finestra e vengono salvate al prossimo salvataggio riuscito.
 
+**Quando sono stati aggiornati i dati**: in alto a destra e nella barra in fondo c'è **🕒 Dati aggiornati: gio 05/11/2026 alle 09:50 (da questo PC)**, oppure "(dal PC …)" se l'ultimo salvataggio è stato fatto su un altro computer. Confrontandola tra i PC si vede subito se su uno il file è più vecchio (per esempio Drive non ha ancora sincronizzato).
+
 **Più PC**: meglio usare il programma su un PC alla volta. Se il file viene cambiato da un altro PC mentre il programma è aperto, tornando sulla finestra ti chiede se ricaricarlo; se salvi comunque, la versione dell'altro PC viene messa da parte in `backup/stato_veicolo_altro_pc_….json`, quindi non si perde nulla.
 
 **Togliere i dati da git** (una volta sola, dopo aver spostato la cartella dati): i passi completi, anche da far eseguire a Copilot in VS Code, sono in [ISTRUZIONI_VSCODE.md](ISTRUZIONI_VSCODE.md). In breve, nel terminale dentro la cartella del programma:
